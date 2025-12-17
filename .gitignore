@@ -9,5 +9,9 @@ wheels/
 # Virtual environments
 .venv
 src/data
-
+ecox
 uv.lock
+ecox/src/data/balance_sheet_600131_.csv
+.python-version
+*.log
+.vscode/settings.json

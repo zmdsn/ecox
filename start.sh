@@ -1,0 +1,1 @@
+uv run watchfiles "uv run get_data.py" get_data.py
