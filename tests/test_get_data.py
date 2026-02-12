@@ -1,17 +1,30 @@
-import pytest
-from ecox.get_data import *
+"""
+数据采集模块测试
+"""
+
+import sys
+from pathlib import Path
+
+# 添加项目根目录到路径
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from ecox.get_data import get_dupont_analysis_, code_format
+
 
 def test_sample():
-    secucode = 'SH601390'
+    """测试杜邦分析"""
+    secucode = "SH601390"
     msg = get_dupont_analysis_(secucode)
     print(msg)
 
-def test_code_Format():
-    secucode = '  SH601390  '
+
+def test_code_format():
+    """测试股票代码格式化"""
+    secucode = "  SH601390  "
     msg1 = code_format(secucode)
-    secucode2 = 'SH601390'
+    secucode2 = "SH601390"
     msg2 = code_format(secucode2)
-    assert msg1 == msg2     
+    assert msg1 == msg2
 
 
 # import asyncio

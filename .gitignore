@@ -8,10 +8,25 @@ wheels/
 
 # Virtual environments
 .venv
-src/data
-ecox
 uv.lock
-ecox/src/data/balance_sheet_600131_.csv
 .python-version
+
+# Data and logs
+src/data
+data/
 *.log
+stock.duckdb
+stock.duckdb.wal
+
+# IDE
 .vscode/settings.json
+
+# Environment variables (security)
+.env
+.env.local
+.env.*.local
+
+# Sensitive files
+*.secret
+*.key
+*.pem

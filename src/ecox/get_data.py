@@ -1,34 +1,20 @@
-import time
-import akshare as ak
+# 导入统一配置和工具模块（从环境变量读取，避免硬编码密码）
+
+# 标准库
 import os
+
+# 第三方库
+import akshare as ak
 import pandas as pd
-import numpy as np
-from fastmcp import FastMCP
-import uvicorn
-from fastmcp.client.transports import StreamableHttpTransport
-from psycopg2 import ProgrammingError, OperationalError, DatabaseError
 import psycopg2
 import psycopg2.extras
+from fastmcp import FastMCP
+from psycopg2 import DatabaseError, OperationalError, ProgrammingError
 
-PG_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "user": "zmdsn",
-    "password": "zmdsnsdmz",
-    "database": "stock",
-    "options": "-c client_encoding=utf8"
-}
+# 本地模块
+from ecox.db import get_pg_conn
+from ecox.utils import code_format
 
-def get_pg_conn():
-    """创建PostgreSQL连接（带重连）"""
-    try:
-        conn = psycopg2.connect(**PG_CONFIG)
-        conn.autocommit = False
-        return conn
-    except OperationalError as e:
-        print(f"数据库连接失败：{e}，5秒后重试...")
-        time.sleep(5)
-        return get_pg_conn()
 
 def run_sql(sql):
     """
@@ -41,15 +27,13 @@ def run_sql(sql):
     """
     conn = None
     cursor = None
-    result = {
-        "data": None
-    }
+    result = {"data": None}
 
     try:
         # 获取连接和游标（设置字典格式返回结果，方便使用）
         conn = get_pg_conn()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        
+
         # 执行 SQL
         cursor.execute(sql)
         conn.commit()
@@ -106,20 +90,19 @@ def get_data(symbol="SH601390"):
     if os.path.exists(filename):
         df = pd.read_csv(filename)
     else:
-        stock_profit_sheet_by_report_em_df = ak.stock_profit_sheet_by_report_em(
-            symbol=symbol)
-        stock_balance_sheet_by_report_em_df = ak.stock_balance_sheet_by_report_em(
-            symbol=symbol)
-        stock_cash_flow_sheet_by_report_em_df = ak.stock_cash_flow_sheet_by_report_em(
-            symbol=symbol)
-        df = pd.merge(stock_profit_sheet_by_report_em_df,
-                      stock_balance_sheet_by_report_em_df, on="REPORT_DATE")
-        df = pd.merge(df, stock_cash_flow_sheet_by_report_em_df,
-                      on="REPORT_DATE")
-        base_list = [x for x in list(df) if not (
-            x.endswith("_x") or x.endswith("_y"))]
+        stock_profit_sheet_by_report_em_df = ak.stock_profit_sheet_by_report_em(symbol=symbol)
+        stock_balance_sheet_by_report_em_df = ak.stock_balance_sheet_by_report_em(symbol=symbol)
+        stock_cash_flow_sheet_by_report_em_df = ak.stock_cash_flow_sheet_by_report_em(symbol=symbol)
+        df = pd.merge(
+            stock_profit_sheet_by_report_em_df,
+            stock_balance_sheet_by_report_em_df,
+            on="REPORT_DATE",
+        )
+        df = pd.merge(df, stock_cash_flow_sheet_by_report_em_df, on="REPORT_DATE")
+        base_list = [x for x in list(df) if not (x.endswith("_x") or x.endswith("_y"))]
         df[base_list].to_csv(filename)
     return df
+
 
 # get_data(symbol="SH601390")
 
@@ -186,71 +169,88 @@ def calculate_dupont_analysis(df):
     """
     # ===================== 1. 数据预处理 =====================
     # 按证券代码、报告日期排序（确保时间顺序）
-    df = df.sort_values(
-        by=['SECURITY_CODE', 'REPORT_DATE']).reset_index(drop=True)
+    df = df.sort_values(by=["SECURITY_CODE", "REPORT_DATE"]).reset_index(drop=True)
 
     # 补充期初值（按证券分组，取上一期的期末值作为本期期初）
     # 期初总资产
-    df['期初总资产'] = df.groupby('SECURITY_CODE')['TOTAL_ASSETS'].shift(1)
+    df["期初总资产"] = df.groupby("SECURITY_CODE")["TOTAL_ASSETS"].shift(1)
     # 期初归属母公司股东权益
-    df['期初归属母公司股东权益'] = df.groupby('SECURITY_CODE')[
-        'TOTAL_PARENT_EQUITY'].shift(1)
-    df['期末总资产'] = df['TOTAL_ASSETS']
+    df["期初归属母公司股东权益"] = df.groupby("SECURITY_CODE")["TOTAL_PARENT_EQUITY"].shift(1)
+    df["期末总资产"] = df["TOTAL_ASSETS"]
 
     # 处理缺失值（首期数据无期初值，可用本期期末值替代）
-    df['期初总资产'] = df['期初总资产'].fillna(df['TOTAL_ASSETS'])
-    df['期初归属母公司股东权益'] = df['期初归属母公司股东权益'].fillna(df['TOTAL_PARENT_EQUITY'])
+    df["期初总资产"] = df["期初总资产"].fillna(df["TOTAL_ASSETS"])
+    df["期初归属母公司股东权益"] = df["期初归属母公司股东权益"].fillna(df["TOTAL_PARENT_EQUITY"])
 
     # ===================== 2. 核心指标计算 =====================
     # 1. 基础利润/收入类
-    df['净利润'] = df['NETPROFIT_BALANCE'].fillna(
-        df['TOTAL_PROFIT'] - df['INCOME_TAX'])
-    df['归属母公司股东净利润'] = df['PARENT_NETPROFIT']
-    df['营业总收入'] = df['TOTAL_OPERATE_INCOME']
-    df['利润总额'] = df['TOTAL_PROFIT']
+    df["净利润"] = df["NETPROFIT_BALANCE"].fillna(df["TOTAL_PROFIT"] - df["INCOME_TAX"])
+    df["归属母公司股东净利润"] = df["PARENT_NETPROFIT"]
+    df["营业总收入"] = df["TOTAL_OPERATE_INCOME"]
+    df["利润总额"] = df["TOTAL_PROFIT"]
     # （息税前利润）
-    df['EBIT'] = df['利润总额'] + df['INTEREST_EXPENSE']
+    df["EBIT"] = df["利润总额"] + df["INTEREST_EXPENSE"]
 
     # 2. 平均资产/权益类
-    df['平均总资产'] = (df['TOTAL_ASSETS'] + df['期初总资产']) / 2
-    df['平均归属母公司股东权益'] = (df['TOTAL_PARENT_EQUITY'] + df['期初归属母公司股东权益']) / 2
-    df['期末归属母公司股东权益'] = df['TOTAL_PARENT_EQUITY']
+    df["平均总资产"] = (df["TOTAL_ASSETS"] + df["期初总资产"]) / 2
+    df["平均归属母公司股东权益"] = (df["TOTAL_PARENT_EQUITY"] + df["期初归属母公司股东权益"]) / 2
+    df["期末归属母公司股东权益"] = df["TOTAL_PARENT_EQUITY"]
 
     # 3. 比率类（杜邦核心）
     # 销售净利率
-    df['销售净利率'] = (df['净利润'] / df['营业总收入'] * 100).round(2)
+    df["销售净利率"] = (df["净利润"] / df["营业总收入"] * 100).round(2)
     # 归属母公司股东的销售净利率
-    df['归属母公司股东的销售净利率'] = (df['归属母公司股东净利润'] / df['营业总收入'] * 100).round(2)
+    df["归属母公司股东的销售净利率"] = (df["归属母公司股东净利润"] / df["营业总收入"] * 100).round(
+        2
+    )
 
     # 资产周转率
-    df['资产周转率'] = (df['营业总收入'] / df['平均总资产']).round(4)
+    df["资产周转率"] = (df["营业总收入"] / df["平均总资产"]).round(4)
     # 权益乘数
-    df['权益乘数'] = (df['平均总资产'] / df['平均归属母公司股东权益']).round(4)
+    df["权益乘数"] = (df["平均总资产"] / df["平均归属母公司股东权益"]).round(4)
     # 净资产收益率（ROE）
-    df['净资产收益率'] = (df['归属母公司股东净利润'] / df['平均归属母公司股东权益'] * 100).round(2)
+    df["净资产收益率"] = (df["归属母公司股东净利润"] / df["平均归属母公司股东权益"] * 100).round(2)
 
     # 4. 辅助分析指标
     # 归属母公司股东的净利润占比
-    df['归属母公司股东的净利润占比'] = (df['归属母公司股东净利润'] / df['净利润'] * 100).round(2)
+    df["归属母公司股东的净利润占比"] = (df["归属母公司股东净利润"] / df["净利润"] * 100).round(2)
     # 经营利润率
-    df['经营利润率'] = (df['OPERATE_PROFIT'] / df['营业总收入'] * 100).round(2)
+    df["经营利润率"] = (df["OPERATE_PROFIT"] / df["营业总收入"] * 100).round(2)
     # 考虑税负因素
-    df['税负因子'] = (df['净利润'] / df['利润总额'] * 100).round(2)
+    df["税负因子"] = (df["净利润"] / df["利润总额"] * 100).round(2)
     # 考虑利息负担
-    df['利息负担因子'] = (df['EBIT'] / df['利润总额'] * 100).round(2)
+    df["利息负担因子"] = (df["EBIT"] / df["利润总额"] * 100).round(2)
 
     return df
+
 
 def dupont_analysis_json(df) -> dict:
     # ===================== 3. 结果输出 =====================
     # 筛选杜邦分析核心列输出
     dupont_cols = [
-        'REPORT_DATE', 'SECURITY_CODE', 'SECURITY_NAME_ABBR',
-        '营业总收入', '净利润', '归属母公司股东净利润',
-        '平均总资产', '平均归属母公司股东权益', '归属母公司股东的净利润占比',
-        '销售净利率', '归属母公司股东的销售净利率', '期末总资产', '期初总资产',
-        '资产周转率', '权益乘数', '净资产收益率', '期初归属母公司股东权益', '期末归属母公司股东权益',
-        '经营利润率', '税负因子', '利息负担因子', 'EBIT', '利润总额'
+        "REPORT_DATE",
+        "SECURITY_CODE",
+        "SECURITY_NAME_ABBR",
+        "营业总收入",
+        "净利润",
+        "归属母公司股东净利润",
+        "平均总资产",
+        "平均归属母公司股东权益",
+        "归属母公司股东的净利润占比",
+        "销售净利率",
+        "归属母公司股东的销售净利率",
+        "期末总资产",
+        "期初总资产",
+        "资产周转率",
+        "权益乘数",
+        "净资产收益率",
+        "期初归属母公司股东权益",
+        "期末归属母公司股东权益",
+        "经营利润率",
+        "税负因子",
+        "利息负担因子",
+        "EBIT",
+        "利润总额",
     ]
     dupont_result = calculate_dupont_analysis(df)
     dupont_result = dupont_result[dupont_cols].copy()
@@ -262,29 +262,10 @@ def get_dupont_analysis_(secucode) -> dict:
     df_dupont = calculate_dupont_analysis(df)
     return generate_dupont_mermaid(df_dupont.iloc[0])
 
-def code_format(secucode: str):
-    secucode = secucode.strip()
-    if secucode.startswith("S") or secucode.startswith("B"):
-        return secucode.strip()
-    if secucode.startswith("s") or secucode.startswith("b"):
-        return secucode.upper()
-    if secucode[0] in ["0", "3", "2"]:
-        # 深市主板股票代码以0开头，创业板股票代码以3开头
-        # 深市B股股票代码以200开头
-        return "SZ" + secucode.strip()
-    elif secucode.startswith("6") or secucode.startswith("9"):
-        # 沪市主板已启用代码段包括600、601、603、605，科创板已启用代码段为688
-        # 沪市B股股票代码以900开头，以美元计价交易
-        return "SH" + secucode.strip()
-    else:
-        # 北交所上市公司，股票代码以4或8开头
-        return "BJ" + secucode.strip()
-
-
 
 @mcp.tool
 async def get_dupont_analysis(secucode: str) -> str:
-# async def get_dupont_analysis(request: dict) -> str:
+    # async def get_dupont_analysis(request: dict) -> str:
     """
     杜邦分析计算工具
     Args:
@@ -306,12 +287,14 @@ def add(a: int, b: int) -> int:
     """Add two numbers"""
     return a + b
 
+
 @mcp.tool
 def get_my_data() -> str:
     """
     获取数据
     """
     return {"data": "some data"}
+
 
 @mcp.tool
 def get_sql_data(sql: str = "") -> dict:
@@ -323,6 +306,8 @@ def get_sql_data(sql: str = "") -> dict:
         包含结果的字典。
     """
     return run_sql(sql)
+
+
 # {"data": "some data"}
 
 # 3. 启动服务器
