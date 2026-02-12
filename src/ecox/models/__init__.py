@@ -214,3 +214,45 @@ class UpdateLog(Base):
     failed_count = Column(Integer)
     new_rows_count = Column(Integer)
     error_message = Column(Text)
+
+
+class StockPrice(Base):
+    """股票每日价格表（简化版，用于快速查询）"""
+    
+    __tablename__ = "stock_price"
+    
+    id = Column(Integer, primary_key=True)
+    stock_code = Column(String(20), nullable=False, index=True)
+    trade_date = Column(Date, nullable=False, index=True)
+    close_price = Column(Numeric(10, 2), nullable=False)
+    open_price = Column(Numeric(10, 2))
+    high_price = Column(Numeric(10, 2))
+    low_price = Column(Numeric(10, 2))
+    volume = Column(BigInteger)
+    amount = Column(Numeric(20, 2))
+    change_rate = Column(Numeric(10, 4))  # 涨跌幅
+    update_time = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        UniqueConstraint("stock_code", "trade_date"),
+        Index("idx_price_date", "stock_code", "trade_date"),
+    )
+    
+    def __repr__(self):
+        return f"<StockPrice({self.stock_code} {self.trade_date} {self.close_price})>"
+
+
+# 导出所有模型
+__all__ = [
+    "Base",
+    "StockRealTime",
+    "StockBasic",
+    "StockDailyData",
+    "StockValuation",
+    "IndustryValuation",
+    "StockProfitSheet",
+    "StockBalanceSheet",
+    "StockCashFlowSheet",
+    "UpdateLog",
+    "StockPrice",
+]

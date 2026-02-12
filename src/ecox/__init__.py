@@ -65,7 +65,9 @@ from .services import (
     StockService,
     ValuationService,
     DataCollectionService,
+    PriceService,
 )
+from .models import StockPrice
 
 __all__ = [
     # 配置
@@ -131,4 +133,6 @@ __all__ = [
     "StockService",
     "ValuationService",
     "DataCollectionService",
+    "PriceService",
+    "StockPrice",
 ]
