@@ -1,323 +1,286 @@
 """
 估值数据采集模块
-从 akshare 获取估值数据，并存入数据库
+从 akshare 获取估值数据，并使用 ORM 存入数据库
 """
 import time
 import pandas as pd
 import akshare as ak
-import psycopg2.extras
 from typing import Optional, Dict, List
+from datetime import date, datetime
+import logging
 
-# 导入配置和数据库模块
-import sys
-from pathlib import Path
-_root = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(_root))
-from ..config import PG_CONFIG
-from ..db import get_pg_conn
+# 导入服务和数据库模块
+from ..services import ValuationService, DataCollectionService
+from ..database import get_db_session
+from .. import models
 
 # 数据采集间隔
 CALL_INTERVAL = 0.5  # 秒
 
+# 日志配置
+logger = logging.getLogger(__name__)
 
-def create_valuation_tables():
-    """创建估值数据表"""
-    conn = get_pg_conn()
-    cursor = conn.cursor()
 
-    # 股票估值表
-    create_stock_valuation_sql = """
-    CREATE TABLE IF NOT EXISTS stock_valuation (
-        id SERIAL PRIMARY KEY,
-        stock_code VARCHAR(20) NOT NULL,
-        stock_name VARCHAR(100),
-        trade_date DATE NOT NULL,
-        price NUMERIC(10, 2),
-        earnings_per_share NUMERIC(10, 4),
-        book_value_per_share NUMERIC(10, 4),
-        sales_per_share NUMERIC(10, 4),
-        shares_outstanding NUMERIC(18, 2),
-        total_revenue NUMERIC(20, 2),
-        total_assets NUMERIC(20, 2),
-        net_assets NUMERIC(20, 2),
-        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (stock_code, trade_date)
-    );
-    COMMENT ON TABLE stock_valuation IS '股票估值数据表';
-    CREATE INDEX IF NOT EXISTS idx_valuation_date ON stock_valuation (stock_code, trade_date);
-    """
-
-    # 行业估值表
-    create_industry_valuation_sql = """
-    CREATE TABLE IF NOT EXISTS industry_valuation (
-        id SERIAL PRIMARY KEY,
-        industry_code VARCHAR(20) PRIMARY KEY,
-        industry_name VARCHAR(100),
-        trade_date DATE NOT NULL,
-        avg_pe NUMERIC(10, 2),
-        avg_pb NUMERIC(10, 2),
-        avg_ps NUMERIC(10, 2),
-        avg_market_cap NUMERIC(20, 2),
-        sample_count INTEGER,
-        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (industry_code, trade_date)
-    );
-    COMMENT ON TABLE industry_valuation IS '行业估值数据表';
-    """
+def initialize_database():
+    """初始化数据库表结构"""
+    from ..database import init_db
 
     try:
-        cursor.execute(create_stock_valuation_sql)
-        cursor.execute(create_industry_valuation_sql)
-        conn.commit()
-        print("估值数据表创建成功")
+        db = init_db()
+        db.create_all()
+        logger.info("估值数据表结构初始化完成")
     except Exception as e:
-        conn.rollback()
-        print(f"创建表失败：{e}")
-    finally:
-        cursor.close()
-        conn.close()
+        logger.error(f"数据库初始化失败: {e}")
+        raise
 
 
 def fetch_stock_valuation(
     stock_code: str,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None
-) -> pd.DataFrame:
+    stock_name: str,
+    trade_date: Optional[date] = None,
+) -> Optional[Dict]:
     """
     获取单只股票的估值数据
 
     Args:
         stock_code: 股票代码
-        start_date: 开始日期（格式：20200101）
-        end_date: 截止日期（格式：20231231）
+        stock_name: 股票名称
+        trade_date: 交易日期
 
     Returns:
-        估值数据 DataFrame
+        估值数据字典
     """
     try:
         df = ak.stock_zh_a_spot_em()
 
-        # 转换数据格式
-        if not df.empty:
-            df["stock_code"] = stock_code
-            df["trade_date"] = pd.to_datetime("today").date()
+        # 查找对应股票的数据
+        stock_df = df[df["代码"] == stock_code]
 
-        return df
+        if stock_df.empty:
+            logger.warning(f"未找到 {stock_code} 的数据")
+            return None
 
-    except Exception as e:
-        print(f"获取 {stock_code} 估值数据失败：{e}")
-        return pd.DataFrame()
-
-
-def fetch_industry_valuation(
-    industry: str,
-    trade_date: Optional[str] = None
-) -> Dict:
-    """
-    获取行业平均估值指标
-
-    Args:
-        industry: 行业代码或名称
-        trade_date: 交易日期
-
-    Returns:
-        行业估值指标字典
-    """
-    try:
-        # 这里可以从 stock_valuation 表计算行业平均
-        # 或者从 akshare 获取行业分类数据
+        row = stock_df.iloc[0]
 
         return {
-            "avg_pe": 15.0,  # 示例数据
-            "avg_pb": 2.5,
-            "avg_ps": 5.0,
-            "avg_market_cap": 1000000000,
+            "stock_code": stock_code,
+            "stock_name": stock_name,
+            "trade_date": trade_date or datetime.now().date(),
+            "price": float(row.get("最新价", 0)) if pd.notna(row.get("最新价")) else None,
+            "earnings_per_share": None,  # 需要其他数据源
+            "book_value_per_share": None,  # 需要其他数据源
+            "sales_per_share": None,  # 需要其他数据源
+            "shares_outstanding": None,  # 需要其他数据源
+            "total_revenue": None,
+            "total_assets": None,
+            "net_assets": None,
         }
 
     except Exception as e:
-        print(f"获取 {industry} 行业估值失败：{e}")
-        return {}
+        logger.error(f"获取 {stock_code} 估值数据失败: {e}")
+        return None
 
 
-def save_valuation_to_db(
-    df: pd.DataFrame,
-    table_name: str = "stock_valuation"
-) -> int:
+def save_valuation_data(
+    data_list: List[Dict],
+    service: ValuationService,
+) -> Dict[str, int]:
     """
-    将估值数据保存到数据库
+    批量保存估值数据
 
     Args:
-        df: 估值数据
-        table_name: 表名
+        data_list: 估值数据列表
+        service: 估值服务实例
 
     Returns:
-        插入的记录数
+        统计信息
     """
-    if df.empty:
-        print("无数据可保存")
-        return 0
+    success_count = 0
+    failed_count = 0
 
-    conn = get_pg_conn()
-    cursor = conn.cursor()
+    for data in data_list:
+        try:
+            service.save_valuation(data)
+            success_count += 1
+        except Exception as e:
+            logger.error(f"保存 {data.get('stock_code')} 估值数据失败: {e}")
+            failed_count += 1
 
-    insert_sql = f"""
-    INSERT INTO {table_name} (
-        stock_code, stock_name, trade_date,
-        price, earnings_per_share, book_value_per_share, sales_per_share,
-        shares_outstanding, total_revenue, total_assets, net_assets
-    ) VALUES (
-        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-    )
-    ON CONFLICT (stock_code, trade_date) DO UPDATE SET
-        price = EXCLUDED.price,
-        earnings_per_share = EXCLUDED.earnings_per_share,
-        book_value_per_share = EXCLUDED.book_value_per_share,
-        sales_per_share = EXCLUDED.sales_per_share,
-        shares_outstanding = EXCLUDED.shares_outstanding,
-        total_revenue = EXCLUDED.total_revenue,
-        total_assets = EXCLUDED.total_assets,
-        net_assets = EXCLUDED.net_assets,
-        update_time = CURRENT_TIMESTAMP
-    """
-
-    data_tuples = [
-        (
-            row["stock_code"],
-            row.get("stock_name", ""),
-            row["trade_date"],
-            float(row.get("price", 0)),
-            float(row.get("earnings_per_share", 0)),
-            float(row.get("book_value_per_share", 0)),
-            float(row.get("sales_per_share", 0)),
-            float(row.get("shares_outstanding", 0)),
-            float(row.get("total_revenue", 0)),
-            float(row.get("total_assets", 0)),
-            float(row.get("net_assets", 0)),
-        )
-        for _, row in df.iterrows()
-    ]
-
-    try:
-        psycopg2.extras.execute_batch(cursor, insert_sql, data_tuples, page_size=100)
-        conn.commit()
-        inserted = cursor.rowcount
-        print(f"成功保存 {inserted} 条估值数据")
-        return inserted
-
-    except Exception as e:
-        conn.rollback()
-        print(f"保存估值数据失败：{e}")
-        return 0
-
-    finally:
-        cursor.close()
-        conn.close()
+    return {"success": success_count, "failed": failed_count}
 
 
-def fetch_valuation_data(
+def fetch_and_save_valuation(
     stock_codes: Optional[List[str]] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> pd.DataFrame:
+    trade_date: Optional[date] = None,
+) -> Dict[str, int]:
     """
-    批量获取估值数据
+    批量获取并保存估值数据
 
     Args:
         stock_codes: 股票代码列表，None 表示全市场
-        start_date: 开始日期
-        end_date: 截止日期
+        trade_date: 交易日期
 
     Returns:
-        合并的估值数据 DataFrame
+        统计信息 {"success": int, "failed": int}
     """
+    service = ValuationService()
+    trade_date = trade_date or datetime.now().date()
+
+    # 获取股票列表
+    if stock_codes is None:
+        from ..services import StockService
+        stock_service = StockService()
+        stock_list = stock_service.get_stock_list()
+        stock_codes = [s["stock_code"] for s in stock_list]
+
+        # 限制数量避免请求过多
+        if len(stock_codes) > 100:
+            stock_codes = stock_codes[:100]
+            logger.warning(f"股票数量过多，仅处理前 {len(stock_codes)} 只")
+
     all_data = []
 
-    if stock_codes is None:
-        # 获取全市场股票列表
-        from akshare as ak
-        stock_info = ak.stock_info_a_code_name()
-        stock_codes = stock_info["code"].tolist()[:50]  # 限制数量
-
     for code in stock_codes:
-        df = fetch_stock_valuation(code, start_date, end_date)
-        if not df.empty:
-            all_data.append(df)
+        # 先获取股票名称
+        from ..services import StockService
+        stock_service = StockService()
+        stock_info = stock_service.get_stock_info(code)
+
+        if not stock_info:
+            logger.warning(f"未找到 {code} 的基础信息，跳过")
+            continue
+
+        valuation_data = fetch_stock_valuation(
+            code, stock_info["stock_name"], trade_date
+        )
+
+        if valuation_data:
+            all_data.append(valuation_data)
+
         time.sleep(CALL_INTERVAL)
 
-    if all_data:
-        return pd.concat(all_data, ignore_index=True)
-    else:
-        return pd.DataFrame()
+    # 批量保存
+    result = save_valuation_data(all_data, service)
+
+    logger.info(f"估值数据采集完成: 成功 {result['success']} 条, 失败 {result['failed']} 条")
+
+    return result
 
 
-def update_industry_valuation(trade_date: Optional[str] = None):
+def calculate_industry_valuation(
+    trade_date: Optional[date] = None,
+) -> List[Dict]:
     """
-    更新行业估值指标
+    计算行业估值指标
     从 stock_valuation 表计算各行业的平均估值指标
 
     Args:
         trade_date: 交易日期
 
     Returns:
-        更新的行业数量
+        行业估值列表
     """
-    conn = get_pg_conn()
-    cursor = conn.cursor()
+    service = ValuationService()
+    trade_date = trade_date or datetime.now().date()
 
-    try:
-        # 按行业分组计算平均指标
-        update_sql = """
-        WITH industry_metrics AS (
-            SELECT
-                i.industry_code,
-                AVG(v.pe) as avg_pe,
-                AVG(v.pb) as avg_pb,
-                AVG(v.ps) as avg_ps,
-                AVG(v.market_cap) as avg_market_cap,
-                COUNT(*) as sample_count
-            FROM stock_valuation v
-            WHERE v.trade_date = %s
-            GROUP BY i.industry_code
-        )
-        UPDATE industry_valuation iv
-        SET
-            avg_pe = im.avg_pe,
-            avg_pb = im.avg_pb,
-            avg_ps = im.avg_ps,
-            avg_market_cap = im.avg_market_cap,
-            sample_count = im.sample_count,
-            update_time = CURRENT_TIMESTAMP
-        FROM industry_metrics im
-        WHERE iv.trade_date = %s OR iv.trade_date IS NULL
-        """
+    # 获取所有行业
+    from ..services import StockService
+    stock_service = StockService()
 
-        cursor.execute(update_sql, (trade_date,))
-        conn.commit()
+    industries = {}
+    stock_list = stock_service.get_stock_list()
 
-        updated = cursor.rowcount
-        print(f"更新了 {updated} 个行业的估值指标")
-        return updated
+    # 按行业分组股票
+    for stock in stock_list:
+        industry = stock.get("industry")
+        if industry and industry not in industries:
+            industries[industry] = []
 
-    except Exception as e:
-        conn.rollback()
-        print(f"更新行业估值失败：{e}")
-        return 0
+    # 计算各行业估值
+    industry_valuations = []
 
-    finally:
-        cursor.close()
-        conn.close()
+    for industry_code in industries.keys():
+        try:
+            valuation = service.calculate_industry_valuation(
+                industry_code=industry_code,
+                industry_name=industry_code,
+                trade_date=trade_date,
+            )
+
+            if valuation:
+                industry_valuations.append(valuation)
+
+        except Exception as e:
+            logger.error(f"计算 {industry_code} 行业估值失败: {e}")
+
+    logger.info(f"计算了 {len(industry_valuations)} 个行业的估值指标")
+
+    return industry_valuations
+
+
+def get_cross_industry_comparison(
+    trade_date: Optional[date] = None,
+    limit: int = 20,
+) -> List[Dict]:
+    """
+    获取跨行业估值比较
+
+    Args:
+        trade_date: 交易日期
+        limit: 返回数量限制
+
+    Returns:
+        行业估值比较列表
+    """
+    service = ValuationService()
+    trade_date = trade_date or datetime.now().date()
+
+    return service.get_cross_industry_comparison(trade_date, limit)
+
+
+def get_stock_valuation_history(
+    stock_code: str,
+    start_date: date,
+    end_date: date,
+) -> List[Dict]:
+    """
+    获取股票历史估值数据
+
+    Args:
+        stock_code: 股票代码
+        start_date: 开始日期
+        end_date: 结束日期
+
+    Returns:
+        历史估值数据列表
+    """
+    service = ValuationService()
+    return service.get_historical_valuation(stock_code, start_date, end_date)
 
 
 if __name__ == "__main__":
+    # 配置日志
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler()
+        ]
+    )
+
+    # 初始化数据库
+    initialize_database()
+
     # 测试数据采集
-    create_valuation_tables()
+    logger.info("开始测试估值数据采集...")
 
-    # 获取测试数据
-    test_df = fetch_stock_valuation("600000")
+    result = fetch_and_save_valuation(
+        stock_codes=["600000", "000001"],
+        trade_date=datetime.now().date(),
+    )
 
-    if not test_df.empty:
-        print("测试数据：")
-        print(test_df[["stock_code", "price", "pe"]].head())
+    logger.info(f"测试完成: {result}")
 
-        # 保存到数据库
-        save_valuation_to_db(test_df)
+    # 计算行业估值
+    # industry_valuations = calculate_industry_valuation()
+    # logger.info(f"行业估值: {industry_valuations}")

@@ -12,7 +12,7 @@ uv.lock
 .python-version
 
 # Data and logs
-src/data
+src/data/
 data/
 *.log
 stock.duckdb
@@ -30,3 +30,12 @@ stock.duckdb.wal
 *.secret
 *.key
 *.pem
+
+# Database
+*.duckdb
+stock.duckdb.wal
+stock.sqlite
+stock.duckdb.wal
+
+# Alembic
+src/ecox/alembic/

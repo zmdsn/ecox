@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "akshare>=1.17.91",
+    "alembic>=1.18.4",
     "apache-iotdb>=2.0.5",
     "apscheduler>=3.11.1",
     "backtrader>=1.9.78.123",
@@ -22,6 +23,7 @@ dependencies = [
     "pyttsx3>=2.99",
     "pytz>=2025.2",
     "sounddevice>=0.5.3",
+    "sqlalchemy>=2.0.45",
     "watchfiles>=1.1.1",
 ]
 

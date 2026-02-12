@@ -11,9 +11,12 @@ from .indicators import (
     calculate_valuation_metrics,
 )
 from .fetcher import (
-    fetch_valuation_data,
     fetch_stock_valuation,
-    save_valuation_to_db,
+    fetch_and_save_valuation,
+    calculate_industry_valuation,
+    get_cross_industry_comparison,
+    get_stock_valuation_history,
+    initialize_database,
 )
 
 __all__ = [
@@ -24,7 +27,10 @@ __all__ = [
     "calculate_market_value",
     "calculate_valuation_metrics",
     # 数据采集
-    "fetch_valuation_data",
     "fetch_stock_valuation",
-    "save_valuation_to_db",
+    "fetch_and_save_valuation",
+    "calculate_industry_valuation",
+    "get_cross_industry_comparison",
+    "get_stock_valuation_history",
+    "initialize_database",
 ]

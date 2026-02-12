@@ -9,7 +9,8 @@ from .utils import code_format, parse_stock_code, is_sh_stock, is_sz_stock, is_b
 
 # 数据采集模块
 from .data import (
-    StockDB,
+    init_realtime_database,
+    init_daily_database,
     crawl_balance_sheet,
     crawl_cash_flow_sheet,
     crawl_profit_sheet,
@@ -17,6 +18,7 @@ from .data import (
     initial_full_load,
     is_a_stock_trading_time,
     main_daily_update,
+    run_job,
     sync_a_share_basic,
     validate_a_share_basic,
 )
@@ -28,9 +30,12 @@ from .valuation import (
     calculate_ps,
     calculate_market_value,
     calculate_valuation_metrics,
-    fetch_valuation_data,
+    fetch_and_save_valuation,
     fetch_stock_valuation,
-    save_valuation_to_db,
+    calculate_industry_valuation,
+    get_cross_industry_comparison,
+    get_stock_valuation_history,
+    initialize_database as init_valuation_database,
 )
 
 # 交易策略模块
@@ -48,6 +53,20 @@ from .strategies import (
 # MCP 服务器模块
 from .mcp import mcp, get_dupont_analysis, get_sql_data
 
+# ORM 和服务层
+from .database import init_db, get_db_session, DatabaseSession
+from .repositories import (
+    StockRepository,
+    StockDataRepository,
+    ValuationRepository,
+    FinancialRepository,
+)
+from .services import (
+    StockService,
+    ValuationService,
+    DataCollectionService,
+)
+
 __all__ = [
     # 配置
     "config",
@@ -64,7 +83,8 @@ __all__ = [
     "is_sz_stock",
     "is_bj_stock",
     # 数据采集
-    "StockDB",
+    "init_realtime_database",
+    "init_daily_database",
     "crawl_balance_sheet",
     "crawl_cash_flow_sheet",
     "crawl_profit_sheet",
@@ -72,6 +92,7 @@ __all__ = [
     "initial_full_load",
     "is_a_stock_trading_time",
     "main_daily_update",
+    "run_job",
     "sync_a_share_basic",
     "validate_a_share_basic",
     # 估值
@@ -80,9 +101,12 @@ __all__ = [
     "calculate_ps",
     "calculate_market_value",
     "calculate_valuation_metrics",
-    "fetch_valuation_data",
+    "fetch_and_save_valuation",
     "fetch_stock_valuation",
-    "save_valuation_to_db",
+    "calculate_industry_valuation",
+    "get_cross_industry_comparison",
+    "get_stock_valuation_history",
+    "init_valuation_database",
     # 交易策略
     "DoubleMA_Strategy",
     "MacdCross",
@@ -96,4 +120,15 @@ __all__ = [
     "mcp",
     "get_dupont_analysis",
     "get_sql_data",
+    # ORM 和服务层
+    "init_db",
+    "get_db_session",
+    "DatabaseSession",
+    "StockRepository",
+    "StockDataRepository",
+    "ValuationRepository",
+    "FinancialRepository",
+    "StockService",
+    "ValuationService",
+    "DataCollectionService",
 ]
