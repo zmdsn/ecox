@@ -51,7 +51,7 @@ from .strategies import (
 )
 
 # MCP 服务器模块
-from .mcp import mcp, get_dupont_analysis, get_sql_data
+from .mcp_server import mcp, get_dupont_analysis, get_sql_data
 
 # ORM 和服务层
 from .database import init_db, get_db_session, DatabaseSession

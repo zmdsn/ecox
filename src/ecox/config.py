@@ -6,7 +6,10 @@
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    from python_dotenv import load_dotenv
 
 # 加载 .env 文件
 load_dotenv()

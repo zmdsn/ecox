@@ -2,6 +2,12 @@
 
 # 标准库
 import os
+import sys
+from pathlib import Path
+
+# 添加项目根目录到 Python 路径
+_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(_root))
 
 # 第三方库
 import akshare as ak
@@ -322,4 +328,4 @@ if __name__ == "__main__":
     #         port=8080,      # 自定义端口（解决端口指定需求）
     #         reload=True     # 开发模式热重载（可选）
     #     )
-    mcp.run(transport="http", host="0.0.0.0", port=8080)
+    mcp.run(transport="http", host="0.0.0.0", port=8081)
