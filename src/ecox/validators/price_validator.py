@@ -1,4 +1,5 @@
 """价格验证器"""
+import math
 from typing import Dict, Any
 from datetime import date
 
@@ -20,6 +21,10 @@ class PriceValidator(DataValidator):
     MIN_PRICE = 0.01
     MAX_PRICE = 10000
 
+    def _is_valid_number(self, value: float) -> bool:
+        """Check if value is a valid finite number"""
+        return not (math.isnan(value) or math.isinf(value))
+
     def validate(self, data: Dict[str, Any]) -> ValidationResult:
         """验证价格数据"""
         result = ValidationResult(is_valid=True)
@@ -29,6 +34,20 @@ class PriceValidator(DataValidator):
         open_price = self._get_float(data, "open_price")
         high = self._get_float(data, "high_price")
         low = self._get_float(data, "low_price")
+
+        # 检查 NaN 值
+        if not self._is_valid_number(close):
+            result.add_error(f"Close price is NaN or infinite: {close}")
+        if not self._is_valid_number(open_price):
+            result.add_error(f"Open price is NaN or infinite: {open_price}")
+        if not self._is_valid_number(high):
+            result.add_error(f"High price is NaN or infinite: {high}")
+        if not self._is_valid_number(low):
+            result.add_error(f"Low price is NaN or infinite: {low}")
+
+        # 如果有 NaN 错误，提前返回
+        if not result.is_valid:
+            return result
 
         # 检查价格是否为零（全部为零）
         if close == 0 and open_price == 0 and high == 0 and low == 0:

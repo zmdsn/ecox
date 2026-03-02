@@ -1,5 +1,6 @@
 """价格验证器测试"""
 import pytest
+import math
 from datetime import date
 
 from ecox.validators.price_validator import PriceValidator
@@ -106,3 +107,37 @@ class TestPriceValidator:
 
         assert result.is_valid is False
         assert any("range" in err.lower() for err in result.errors)
+
+    def test_nan_values(self):
+        """测试 NaN 值检测"""
+        validator = PriceValidator()
+        data = {
+            "stock_code": "600809",
+            "trade_date": date(2026, 1, 10),
+            "close_price": float("nan"),
+            "open_price": 10.0,
+            "high_price": 11.0,
+            "low_price": 9.0,
+        }
+        result = validator.validate(data)
+
+        assert result.is_valid is False
+        assert any("nan" in err.lower() or "infinite" in err.lower() for err in result.errors)
+
+    def test_multiple_nan_values(self):
+        """测试多个 NaN 值检测"""
+        validator = PriceValidator()
+        data = {
+            "stock_code": "600809",
+            "trade_date": date(2026, 1, 10),
+            "close_price": float("nan"),
+            "open_price": float("nan"),
+            "high_price": 11.0,
+            "low_price": float("nan"),
+        }
+        result = validator.validate(data)
+
+        assert result.is_valid is False
+        # 应该有多个 NaN 错误
+        nan_errors = [err for err in result.errors if "nan" in err.lower() or "infinite" in err.lower()]
+        assert len(nan_errors) >= 3
