@@ -18,6 +18,7 @@ from sqlalchemy import (
     Index,
     UniqueConstraint,
     ForeignKey,
+    JSON,
 )
 
 # 从 database 模块导入共享的 Base
@@ -242,6 +243,26 @@ class StockPrice(Base):
         return f"<StockPrice({self.stock_code} {self.trade_date} {self.close_price})>"
 
 
+class DataAlert(Base):
+    """数据告警记录表"""
+
+    __tablename__ = "data_alerts"
+
+    id = Column(Integer, primary_key=True)
+    alert_level = Column(String(10), nullable=False, index=True)  # ERROR/WARNING/INFO
+    stock_code = Column(String(20), nullable=False, index=True)
+    stock_name = Column(String(100))
+    alert_type = Column(String(50), nullable=False, index=True)  # price_invalid/volume_zero/...
+    alert_message = Column(Text, nullable=False)
+    raw_data = Column(JSON)  # 原始数据
+    trade_date = Column(Date, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    resolved = Column(Boolean, default=False)
+
+    def __repr__(self):
+        return f"<DataAlert({self.alert_level} {self.stock_code} {self.alert_type})>"
+
+
 # 导出所有模型
 __all__ = [
     "Base",
@@ -255,4 +276,5 @@ __all__ = [
     "StockCashFlowSheet",
     "UpdateLog",
     "StockPrice",
+    "DataAlert",
 ]
