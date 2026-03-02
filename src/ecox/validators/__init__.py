@@ -5,5 +5,6 @@
 
 from .result import ValidationResult
 from .base import DataValidator
+from .price_validator import PriceValidator
 
-__all__ = ["ValidationResult", "DataValidator"]
+__all__ = ["ValidationResult", "DataValidator", "PriceValidator"]
