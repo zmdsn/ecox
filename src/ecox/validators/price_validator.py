@@ -17,9 +17,17 @@ class PriceValidator(DataValidator):
     4. 收盘价在 [最低价, 最高价] 范围内
     """
 
-    # 价格范围配置
-    MIN_PRICE = 0.01
-    MAX_PRICE = 10000
+    def __init__(self, config=None):
+        """初始化价格验证器
+
+        Args:
+            config: 验证配置对象，如果为None则使用默认配置
+        """
+        if config is None:
+            from ecox.config import VALIDATION_CONFIG
+            config = VALIDATION_CONFIG
+
+        self.config = config
 
     def _is_valid_number(self, value: float) -> bool:
         """Check if value is a valid finite number"""
@@ -65,9 +73,9 @@ class PriceValidator(DataValidator):
             result.add_error(f"Low price is negative: {low}")
 
         # 检查价格范围
-        if close > 0 and (close < self.MIN_PRICE or close > self.MAX_PRICE):
+        if close > 0 and (close < self.config.MIN_PRICE or close > self.config.MAX_PRICE):
             result.add_error(f"Close price out of range: {close}")
-        if open_price > 0 and (open_price < self.MIN_PRICE or open_price > self.MAX_PRICE):
+        if open_price > 0 and (open_price < self.config.MIN_PRICE or open_price > self.config.MAX_PRICE):
             result.add_error(f"Open price out of range: {open_price}")
 
         # 检查 OHLC 逻辑关系

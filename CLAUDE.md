@@ -89,6 +89,32 @@ uv add <package>
     - `get_sql_data()` - SQL 查询
     - `code_format()` - 股票代码格式化
 
+### 数据验证模块（src/ecox/validators/）
+
+- **src/ecox/validators/base.py** - 验证器基类
+  - `DataValidator` - 抽象基类，定义验证接口
+  - 支持单条和批量验证
+
+- **src/ecox/validators/result.py** - 验证结果数据类
+  - `ValidationResult` - 封装验证结果、错误和警告
+
+- **src/ecox/validators/price_validator.py** - 价格验证器
+  - 验证价格范围、OHLC 逻辑关系
+  - 支持 NaN 和无穷大值检测
+
+- **src/ecox/validators/volume_validator.py** - 成交量验证器
+  - 验证成交量和成交额的非负性和合理性
+  - 检查成交额与成交量的匹配度
+
+- **src/ecox/validators/composite_validator.py** - 组合验证器
+  - 支持多个验证器的组合使用
+  - 批量验证数据集合
+
+- **src/ecox/config.py** - 统一配置管理
+  - `ValidationConfig` - 验证配置类，支持环境变量覆盖
+  - 可配置价格范围、成交量范围、涨跌幅限制等参数
+  - 支持严格模式和自动清洗模式
+
 ### 数据库配置
 
 PostgreSQL 配置（硬编码在各文件中，需注意修改）：
@@ -120,6 +146,62 @@ PG_CONFIG = {
 - **fastmcp** - MCP 服务器框架
 - **apache-iotdb** - 时序数据库（可选）
 - **duckdb** - 分析型数据库（可选）
+
+### 数据验证模块使用示例
+
+```python
+from ecox.validators.price_validator import PriceValidator
+from ecox.validators.volume_validator import VolumeValidator
+from ecox.validators.composite_validator import CompositeValidator
+
+# 创建验证器实例
+price_validator = PriceValidator()
+volume_validator = VolumeValidator()
+
+# 使用组合验证器
+composite_validator = CompositeValidator([price_validator, volume_validator])
+
+# 验证单条数据
+data = {
+    "stock_code": "000001",
+    "open_price": 10.5,
+    "high_price": 11.0,
+    "low_price": 10.2,
+    "close_price": 10.8,
+    "volume": 1000000,
+    "amount": 10800000.0,
+}
+result = composite_validator.validate(data)
+if result.is_valid:
+    print("数据验证通过")
+else:
+    print(f"验证失败: {result.errors}")
+
+# 批量验证
+data_list = [data1, data2, data3]
+results = composite_validator.validate_batch(data_list)
+```
+
+### 配置验证参数
+
+在 `.env` 文件中配置验证参数：
+
+```bash
+# 价格范围
+VALIDATION_MIN_PRICE=0.01
+VALIDATION_MAX_PRICE=10000
+
+# 成交量范围
+VALIDATION_MIN_VOLUME=0
+VALIDATION_MAX_VOLUME=1000000000000
+
+# 涨跌幅限制
+VALIDATION_MAX_CHANGE_PCT=20.0
+
+# 验证模式
+VALIDATION_STRICT_MODE=false
+VALIDATION_AUTO_CLEAN=true
+```
 
 ## 注意事项
 

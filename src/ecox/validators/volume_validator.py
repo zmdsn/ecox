@@ -15,6 +15,18 @@ class VolumeValidator(DataValidator):
     3. 成交额应该 >= 成交量 * 最低价（粗略检查）
     """
 
+    def __init__(self, config=None):
+        """初始化成交量验证器
+
+        Args:
+            config: 验证配置对象，如果为None则使用默认配置
+        """
+        if config is None:
+            from ecox.config import VALIDATION_CONFIG
+            config = VALIDATION_CONFIG
+
+        self.config = config
+
     def validate(self, data: Dict[str, Any]) -> ValidationResult:
         """验证成交量数据"""
         result = ValidationResult(is_valid=True)
@@ -31,6 +43,8 @@ class VolumeValidator(DataValidator):
                 volume = int(volume)
                 if volume < 0:
                     result.add_error(f"成交量为负: {volume}")
+                elif volume > self.config.MAX_VOLUME:
+                    result.add_error(f"成交量超过最大值: {volume}")
             except (ValueError, TypeError):
                 result.add_error(f"成交量格式错误: {volume}")
 
@@ -40,6 +54,8 @@ class VolumeValidator(DataValidator):
                 amount = float(amount)
                 if amount < 0:
                     result.add_error(f"成交额为负: {amount}")
+                elif amount > self.config.MAX_AMOUNT:
+                    result.add_error(f"成交额超过最大值: {amount}")
 
                 # 检查成交额与成交量的合理性
                 if volume and amount > 0 and close > 0 and not math.isnan(close):
