@@ -8,6 +8,7 @@ from .valuation_service import ValuationService
 from .data_collection_service import DataCollectionService
 from .price_service import PriceService
 from .alert_service import AlertService
+from .financial_report_service import FinancialReportService
 
 __all__ = [
     "StockService",
@@ -15,4 +16,5 @@ __all__ = [
     "DataCollectionService",
     "PriceService",
     "AlertService",
+    "FinancialReportService",
 ]

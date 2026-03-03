@@ -46,6 +46,12 @@ class ValidationConfig:
     AUTO_CLEAN = os.getenv("VALIDATION_AUTO_CLEAN", "true").lower() == "true"
 
 
+class FinancialReportConfig:
+    """财报下载配置"""
+    REQUEST_INTERVAL = float(os.getenv("FR_REQUEST_INTERVAL", "1.0"))
+    BATCH_SIZE = int(os.getenv("FR_BATCH_SIZE", "50"))
+
+
 class Config:
     """基础配置类"""
 
@@ -76,6 +82,9 @@ class Config:
 
         # 验证配置
         self.validation = ValidationConfig()
+
+        # 财报下载配置
+        self.financial_report = FinancialReportConfig()
 
 
 class DevConfig(Config):
