@@ -5,7 +5,6 @@
 import pytest
 import pandas as pd
 from src.ecox.data.shares import get_stock_basic_raw, supplement_stock_detail
-from src.ecox.repositories import StockRepository
 from src.ecox.models import StockBasic
 
 
