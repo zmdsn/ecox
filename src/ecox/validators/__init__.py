@@ -8,5 +8,6 @@ from .base import DataValidator
 from .price_validator import PriceValidator
 from .volume_validator import VolumeValidator
 from .composite import CompositeValidator
+from .report_validator import ReportValidator
 
-__all__ = ["ValidationResult", "DataValidator", "PriceValidator", "VolumeValidator", "CompositeValidator"]
+__all__ = ["ValidationResult", "DataValidator", "PriceValidator", "VolumeValidator", "CompositeValidator", "ReportValidator"]
