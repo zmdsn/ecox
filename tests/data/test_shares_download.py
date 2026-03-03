@@ -4,7 +4,7 @@
 """
 import pytest
 import pandas as pd
-from src.ecox.data.shares import get_stock_basic_raw
+from src.ecox.data.shares import get_stock_basic_raw, supplement_stock_detail
 
 
 class TestGetStockBasicRaw:
@@ -38,3 +38,50 @@ class TestGetStockBasicRaw:
         df = get_stock_basic_raw()
         duplicate_count = df["stock_code"].duplicated().sum()
         assert duplicate_count == 0, f"存在 {duplicate_count} 个重复代码"
+
+
+class TestSupplementStockDetail:
+    """测试 supplement_stock_detail() 函数"""
+
+    def test_supplements_industry_column(self):
+        """验证补充 industry 列"""
+        # 准备测试数据（2只股票，减少 API 调用）
+        test_df = pd.DataFrame({
+            "stock_code": ["000001", "000002"],
+            "stock_name": ["平安银行", "万科A"]
+        })
+
+        result = supplement_stock_detail(test_df)
+
+        # 验证新列存在
+        assert "industry" in result.columns
+        assert "list_date" in result.columns
+        assert "delist_date" in result.columns
+
+    def test_preserves_original_data(self):
+        """验证保留原始数据"""
+        test_df = pd.DataFrame({
+            "stock_code": ["000001"],
+            "stock_name": ["平安银行"]
+        })
+
+        result = supplement_stock_detail(test_df)
+
+        # 验证原始数据未丢失
+        assert result["stock_code"].iloc[0] == "000001"
+        assert result["stock_name"].iloc[0] == "平安银行"
+
+    @pytest.mark.network
+    @pytest.mark.xfail(reason="需要网络连接访问 akshare API，API不可用时预期失败")
+    def test_has_industry_data(self):
+        """验证行业数据被填充"""
+        test_df = pd.DataFrame({
+            "stock_code": ["000001", "000002"],
+            "stock_name": ["平安银行", "万科A"]
+        })
+
+        result = supplement_stock_detail(test_df)
+
+        # 至少有一只股票获取到行业信息
+        valid_industries = result["industry"].notna().sum()
+        assert valid_industries > 0, "未获取到任何行业信息"
