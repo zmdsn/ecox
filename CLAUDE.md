@@ -23,6 +23,8 @@ uv run get_data.py          # 启动实时行情采集
 uv run get_daily_data.py     # 更新历史日线数据
 uv run get_shares.py         # 维护股票基础信息
 uv run main.py               # 运行回测
+uv run fetch_reports.py --stock 600809  # 下载单股票财报
+uv run fetch_reports.py --batch --limit 100  # 批量下载财报
 ```
 
 ### 测试
@@ -89,6 +91,24 @@ uv add <package>
     - `get_sql_data()` - SQL 查询
     - `code_format()` - 股票代码格式化
 
+### 财报下载模块
+
+- **fetch_reports.py** - 财报下载命令行工具
+  - 支持单股票下载：`uv run fetch_reports.py --stock 600809`
+  - 支持批量下载：`uv run fetch_reports.py --batch --limit 100`
+
+- **src/ecox/services/financial_report_service.py** - 财报下载服务
+  - `fetch_profit_sheet()` - 下载利润表
+  - `fetch_balance_sheet()` - 下载资产负债表
+  - `fetch_cash_flow_sheet()` - 下载现金流量表
+  - `batch_fetch_all_stocks()` - 批量下载所有股票财报
+  - 集成数据验证和告警机制
+
+- **src/ecox/validators/report_validator.py** - 财报验证器
+  - `validate_profit_sheet()` - 验证利润表数据
+  - `validate_balance_sheet()` - 验证资产负债表数据（含勾稽关系检查）
+  - `validate_cash_flow_sheet()` - 验证现金流量表数据
+
 ### 数据验证模块（src/ecox/validators/）
 
 - **src/ecox/validators/base.py** - 验证器基类
@@ -136,6 +156,10 @@ PG_CONFIG = {
 - `stock_basic_info` - 股票基本信息（get_daily_data.py 使用）
 - `stock_daily_data` - 历史日线数据表
 - `update_log` - 更新日志表
+- `stock_profit_sheet` - 利润表数据
+- `stock_balance_sheet` - 资产负债表数据
+- `stock_cash_flow_sheet` - 现金流量表数据
+- `data_alerts` - 数据验证告警记录表
 
 ### 依赖说明
 

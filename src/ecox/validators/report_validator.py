@@ -1,6 +1,7 @@
 """财报验证器"""
 import math
-from typing import Dict, Any
+from typing import Any
+
 from .result import ValidationResult
 
 
@@ -10,7 +11,7 @@ class ReportValidator:
     def __init__(self):
         pass
 
-    def validate_profit_sheet(self, data: Dict[str, Any]) -> ValidationResult:
+    def validate_profit_sheet(self, data: dict[str, Any]) -> ValidationResult:
         """验证利润表数据 - 核心字段非负、NaN检查"""
         result = ValidationResult(is_valid=True)
 
@@ -35,7 +36,7 @@ class ReportValidator:
                 result.add_error(f"{name} 格式错误: {value}")
         return result
 
-    def validate_balance_sheet(self, data: Dict[str, Any]) -> ValidationResult:
+    def validate_balance_sheet(self, data: dict[str, Any]) -> ValidationResult:
         """验证资产负债表数据 - 非负检查 + 勾稽关系检查"""
         result = ValidationResult(is_valid=True)
 
@@ -82,7 +83,7 @@ class ReportValidator:
                 pass
         return result
 
-    def validate_cash_flow_sheet(self, data: Dict[str, Any]) -> ValidationResult:
+    def validate_cash_flow_sheet(self, data: dict[str, Any]) -> ValidationResult:
         """验证现金流量表数据 - NaN检查（值可以为负）"""
         result = ValidationResult(is_valid=True)
 

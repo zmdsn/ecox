@@ -1,15 +1,15 @@
 """财务报表下载服务"""
-import time
 import logging
-from typing import List, Dict, Optional
+import time
 from datetime import datetime
+
 import akshare as ak
 
-from ..database import get_db_session
 from .. import models
+from ..config import config
+from ..database import get_db_session
 from ..validators.report_validator import ReportValidator
 from .alert_service import AlertService
-from ..config import config
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class FinancialReportService:
         self.validator = ReportValidator()
         self.alert_service = AlertService()
 
-    def _get_stock_list(self) -> List[str]:
+    def _get_stock_list(self) -> list[str]:
         """获取所有股票代码"""
         with get_db_session() as session:
             stocks = session.query(models.StockBasic.stock_code).all()
@@ -36,7 +36,7 @@ class FinancialReportService:
             return f"SZ{code}"
 
     @staticmethod
-    def _safe_float(value) -> Optional[float]:
+    def _safe_float(value) -> float | None:
         """安全转换为浮点数"""
         if value is None:
             return None
@@ -45,7 +45,7 @@ class FinancialReportService:
         except (ValueError, TypeError):
             return None
 
-    def fetch_profit_sheet(self, stock_code: str) -> List[Dict]:
+    def fetch_profit_sheet(self, stock_code: str) -> list[dict]:
         """下载利润表数据"""
         try:
             symbol = self._code_format(stock_code)
@@ -79,7 +79,7 @@ class FinancialReportService:
             logger.error(f"下载 {stock_code} 利润表失败: {e}")
             return []
 
-    def fetch_balance_sheet(self, stock_code: str) -> List[Dict]:
+    def fetch_balance_sheet(self, stock_code: str) -> list[dict]:
         """下载资产负债表数据"""
         try:
             symbol = self._code_format(stock_code)
@@ -109,7 +109,7 @@ class FinancialReportService:
             logger.error(f"下载 {stock_code} 资产负债表失败: {e}")
             return []
 
-    def fetch_cash_flow_sheet(self, stock_code: str) -> List[Dict]:
+    def fetch_cash_flow_sheet(self, stock_code: str) -> list[dict]:
         """下载现金流量表数据"""
         try:
             symbol = self._code_format(stock_code)
@@ -139,7 +139,7 @@ class FinancialReportService:
             logger.error(f"下载 {stock_code} 现金流量表失败: {e}")
             return []
 
-    def save_profit_sheet(self, stock_code: str, data_list: List[Dict]) -> Dict[str, int]:
+    def save_profit_sheet(self, stock_code: str, data_list: list[dict]) -> dict[str, int]:
         """保存利润表数据（带验证）"""
         saved_count = 0
         skipped_count = 0
@@ -194,7 +194,7 @@ class FinancialReportService:
 
         return {"saved": saved_count, "skipped": skipped_count, "failed": failed_count, "total": len(data_list)}
 
-    def save_balance_sheet(self, stock_code: str, data_list: List[Dict]) -> Dict[str, int]:
+    def save_balance_sheet(self, stock_code: str, data_list: list[dict]) -> dict[str, int]:
         """保存资产负债表数据（类似逻辑）"""
         saved_count = 0
         skipped_count = 0
@@ -240,7 +240,7 @@ class FinancialReportService:
 
         return {"saved": saved_count, "skipped": skipped_count, "failed": failed_count, "total": len(data_list)}
 
-    def save_cash_flow_sheet(self, stock_code: str, data_list: List[Dict]) -> Dict[str, int]:
+    def save_cash_flow_sheet(self, stock_code: str, data_list: list[dict]) -> dict[str, int]:
         """保存现金流量表数据（类似逻辑）"""
         saved_count = 0
         skipped_count = 0
@@ -286,7 +286,7 @@ class FinancialReportService:
 
         return {"saved": saved_count, "skipped": skipped_count, "failed": failed_count, "total": len(data_list)}
 
-    def fetch_all_reports(self, stock_code: str) -> Dict[str, List[Dict]]:
+    def fetch_all_reports(self, stock_code: str) -> dict[str, list[dict]]:
         """下载单股票的所有报表"""
         logger.info(f"开始下载 {stock_code} 的所有财报")
         result = {"profit": [], "balance": [], "cash_flow": []}
@@ -310,7 +310,7 @@ class FinancialReportService:
 
         return result
 
-    def batch_fetch_all_stocks(self, stock_codes: Optional[List[str]] = None, limit: Optional[int] = None) -> Dict[str, int]:
+    def batch_fetch_all_stocks(self, stock_codes: list[str] | None = None, limit: int | None = None) -> dict[str, int]:
         """批量下载所有股票的财报"""
         if not stock_codes:
             stock_codes = self._get_stock_list()
