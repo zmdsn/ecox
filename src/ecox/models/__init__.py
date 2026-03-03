@@ -158,7 +158,13 @@ class StockProfitSheet(Base):
     net_profit = Column(Numeric(20, 2))
     basic_eps = Column(Numeric(10, 4))
     diluted_eps = Column(Numeric(10, 4))
+    extra_data = Column(JSON)  # 存储完整财报数据
     create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("stock_code", "report_date", name="uix_profit_report"),
+    )
 
     def __repr__(self):
         return f"<StockProfitSheet({self.stock_code} {self.report_date})>"
@@ -178,7 +184,13 @@ class StockBalanceSheet(Base):
     total_liabilities = Column(Numeric(20, 2))
     owner_equity = Column(Numeric(20, 2))
     fixed_assets = Column(Numeric(20, 2))
+    extra_data = Column(JSON)  # 存储完整财报数据
     create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("stock_code", "report_date", name="uix_balance_report"),
+    )
 
     def __repr__(self):
         return f"<StockBalanceSheet({self.stock_code} {self.report_date})>"
@@ -198,7 +210,13 @@ class StockCashFlowSheet(Base):
     investing_cash_flow = Column(Numeric(20, 2))
     financing_cash_flow = Column(Numeric(20, 2))
     net_cash_flow = Column(Numeric(20, 2))
+    extra_data = Column(JSON)  # 存储完整财报数据
     create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("stock_code", "report_date", name="uix_cashflow_report"),
+    )
 
     def __repr__(self):
         return f"<StockCashFlowSheet({self.stock_code} {self.report_date})>"
