@@ -71,8 +71,6 @@ class TestSupplementStockDetail:
         assert result["stock_code"].iloc[0] == "000001"
         assert result["stock_name"].iloc[0] == "平安银行"
 
-    @pytest.mark.network
-    @pytest.mark.xfail(reason="需要网络连接访问 akshare API，API不可用时预期失败")
     def test_has_industry_data(self):
         """验证行业数据被填充"""
         test_df = pd.DataFrame({
