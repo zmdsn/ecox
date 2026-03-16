@@ -39,3 +39,6 @@ stock.duckdb.wal
 
 # Alembic
 src/ecox/alembic/
+
+# Git worktrees
+.worktrees/
