@@ -1,8 +1,10 @@
 # 导入统一配置和工具模块（从环境变量读取，避免硬编码密码）
 
 # 标准库
+import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # 添加项目根目录到 Python 路径
@@ -315,6 +317,49 @@ def get_sql_data(sql: str = "") -> dict:
 
 
 # {"data": "some data"}
+
+
+@mcp.tool
+async def get_financial_analysis(
+    stock_code: str,
+    report_date: str | None = None,
+    modules: list[str] | None = None
+) -> str:
+    """
+    统一财务分析工具
+
+    Args:
+        stock_code: 股票代码（如 600809 或 SH600809）
+        report_date: 报告日期（可选，如 2024-12-31，默认最新）
+        modules: 分析模块（可选，如 ["profitability", "cash_flow"]，默认全部）
+                 可选值: profitability, cash_flow, solvency, efficiency, growth, valuation
+
+    Returns:
+        JSON 格式的财务分析结果
+    """
+    try:
+        # 格式化股票代码
+        formatted_code = code_format(stock_code)
+
+        # 创建服务实例
+        from ecox.services.financial_analysis_service import FinancialAnalysisService
+        service = FinancialAnalysisService()
+
+        # 计算指标
+        result = service.calculate_metrics(
+            stock_code=formatted_code,
+            report_date=report_date,
+            modules=modules,
+        )
+
+        # 添加元信息
+        result["source"] = "database"
+        result["update_time"] = datetime.now().isoformat()
+
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
 
 # 3. 启动服务器
 if __name__ == "__main__":
