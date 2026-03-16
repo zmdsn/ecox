@@ -13,7 +13,7 @@ uv.lock
 
 # Data and logs
 src/data/
-data/
+/data/
 *.log
 stock.duckdb
 stock.duckdb.wal
