@@ -281,6 +281,67 @@ class DataAlert(Base):
         return f"<DataAlert({self.alert_level} {self.stock_code} {self.alert_type})>"
 
 
+class StockFinancialMetrics(Base):
+    """统一财务指标表"""
+    __tablename__ = "stock_financial_metrics"
+
+    id = Column(Integer, primary_key=True)
+    stock_code = Column(String(20), nullable=False, index=True)
+    stock_name = Column(String(50))
+    report_date = Column(String(20), nullable=False, index=True)
+    report_type = Column(String(10))
+
+    # === 盈利能力 ===
+    roe = Column(Numeric(10, 4))
+    roa = Column(Numeric(10, 4))
+    roic = Column(Numeric(10, 4))
+    gross_margin = Column(Numeric(10, 4))
+    net_margin = Column(Numeric(10, 4))
+    operating_margin = Column(Numeric(10, 4))
+
+    # === 现金流分析 ===
+    fcff = Column(Numeric(20, 4))
+    fcfe = Column(Numeric(20, 4))
+    capex = Column(Numeric(20, 4))
+    cash_conversion_rate = Column(Numeric(10, 4))
+    ocf_to_sales = Column(Numeric(10, 4))
+
+    # === 偿债能力 ===
+    debt_ratio = Column(Numeric(10, 4))
+    current_ratio = Column(Numeric(10, 4))
+    quick_ratio = Column(Numeric(10, 4))
+    interest_coverage = Column(Numeric(10, 4))
+
+    # === 营运能力 ===
+    inventory_turnover = Column(Numeric(10, 4))
+    receivables_turnover = Column(Numeric(10, 4))
+    asset_turnover = Column(Numeric(10, 4))
+
+    # === 成长能力 ===
+    revenue_growth_1y = Column(Numeric(10, 4))
+    profit_growth_1y = Column(Numeric(10, 4))
+    revenue_cagr_5y = Column(Numeric(10, 4))
+    profit_cagr_5y = Column(Numeric(10, 4))
+    fcff_cagr_5y = Column(Numeric(10, 4))
+
+    # === 估值指标 ===
+    pe_ratio = Column(Numeric(10, 4))
+    pb_ratio = Column(Numeric(10, 4))
+    ps_ratio = Column(Numeric(10, 4))
+    ev_ebitda = Column(Numeric(10, 4))
+    peg_ratio = Column(Numeric(10, 4))
+
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("stock_code", "report_date", name="uix_financial_metrics"),
+    )
+
+    def __repr__(self):
+        return f"<StockFinancialMetrics({self.stock_code} {self.report_date})>"
+
+
 # 导出所有模型
 __all__ = [
     "Base",
@@ -295,4 +356,5 @@ __all__ = [
     "UpdateLog",
     "StockPrice",
     "DataAlert",
+    "StockFinancialMetrics",
 ]
