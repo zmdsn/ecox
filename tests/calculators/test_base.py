@@ -61,6 +61,24 @@ class TestBaseCalculator:
         result = BaseCalculator._safe_float(123.456)
         assert result == 123.456
 
+    def test_round_with_nan(self):
+        """测试 _round 处理 NaN"""
+        assert BaseCalculator._round(float('nan')) is None
+
+    def test_round_with_inf(self):
+        """测试 _round 处理 Inf"""
+        assert BaseCalculator._round(float('inf')) is None
+        assert BaseCalculator._round(float('-inf')) is None
+
+    def test_safe_float_with_nan(self):
+        """测试 _safe_float 处理 NaN"""
+        assert BaseCalculator._safe_float(float('nan')) is None
+
+    def test_safe_float_with_inf(self):
+        """测试 _safe_float 处理 Inf"""
+        assert BaseCalculator._safe_float(float('inf')) is None
+        assert BaseCalculator._safe_float(float('-inf')) is None
+
 
 class ConcreteCalculator(BaseCalculator):
     """用于测试的具体计算器实现"""
