@@ -173,37 +173,29 @@ class TestFinancialAnalysisService:
         assert result.get("roe") is None
         assert result.get("roa") is None
 
-    @patch("ecox.services.financial_analysis_service.get_db_session")
-    def test_get_financial_data_from_database(self, mock_db_session, service):
-        """测试从数据库获取财务数据"""
-        # 模拟数据库会话和查询结果
-        mock_session = MagicMock()
-        mock_db_session.return_value.__enter__ = MagicMock(return_value=mock_session)
-        mock_db_session.return_value.__exit__ = MagicMock(return_value=False)
+    @patch("ecox.services.lazy_loading_service.LazyLoadingService._fetch_from_database")
+    def test_get_financial_data_from_database(self, mock_fetch, service):
+        """测试从数据库获取财务数据（通过懒加载服务）"""
+        from datetime import datetime
 
-        # 模拟利润表记录
-        mock_profit = MagicMock()
-        mock_profit.stock_code = "600809"
-        mock_profit.stock_name = "山西汾酒"
-        mock_profit.report_date = "2024-09-30"
-        mock_profit.report_type = "三季报"
-        mock_profit.net_profit = 150000
-        mock_profit.total_revenue = 1000000
-        mock_profit.operating_profit = 200000
-        mock_profit.basic_eps = 1.5
-        mock_profit.extra_data = {"other_field": "value"}
-
-        # 模拟查询
-        mock_query = MagicMock()
-        mock_query.filter.return_value = mock_query
-        mock_query.order_by.return_value = mock_query
-        mock_query.first.return_value = mock_profit
-        mock_session.query.return_value = mock_query
+        # 模拟从数据库获取的数据
+        mock_fetch.return_value = {
+            'stock_code': 'SH600809',
+            'stock_name': '山西汾酒',
+            'report_date': datetime(2024, 9, 30),
+            'report_type': '三季报',
+            'profit_sheet': {
+                'net_profit': 150000,
+                'other_field': 'value'
+            },
+            'balance_sheet': {},
+            'cash_flow_sheet': {}
+        }
 
         result = service._get_financial_data("600809")
 
         assert result["stock_name"] == "山西汾酒"
-        assert result["report_date"] == "2024-09-30"
+        assert "2024-09-30" in str(result["report_date"])
         assert result["profit_sheet"]["net_profit"] == 150000
         assert result["profit_sheet"]["other_field"] == "value"
 
