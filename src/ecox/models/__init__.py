@@ -24,6 +24,9 @@ from sqlalchemy import (
 # 从 database 模块导入共享的 Base
 from ..database import Base
 
+# 导入 BaseMixin
+from .base import BaseMixin
+
 
 class StockRealTime(Base):
     """实时行情表"""
@@ -345,6 +348,7 @@ class StockFinancialMetrics(Base):
 # 导出所有模型
 __all__ = [
     "Base",
+    "BaseMixin",
     "StockRealTime",
     "StockBasic",
     "StockDailyData",
