@@ -3,6 +3,7 @@ import pytest
 from datetime import datetime
 from ecox.agent.models.message import Message
 from ecox.agent.models.conversation import Conversation
+from ecox.agent.models.context import Context, Entities
 
 
 def test_message_creation():
@@ -53,3 +54,38 @@ def test_conversation_with_messages():
     )
     assert conv.id == 1
     assert conv.metadata["user"] == "test_user"
+
+
+def test_entities_creation():
+    """测试实体提取结果"""
+    entities = Entities()
+    assert entities.stock_codes == []
+    assert entities.dates == []
+
+
+def test_entities_with_data():
+    """测试带数据的实体"""
+    entities = Entities(
+        stock_codes=["600809", "SH601318"],
+        dates=["2024-09-30", "2024年三季度"]
+    )
+    assert len(entities.stock_codes) == 2
+    assert "600809" in entities.stock_codes
+    assert "2024-09-30" in entities.dates
+
+
+def test_context_creation():
+    """测试上下文对象"""
+    messages = [
+        Message(role="user", content="查询中国平安", session_id="test-1")
+    ]
+    context = Context(
+        session_id="test-1",
+        history=[],
+        entities=Entities(),
+        current_messages=messages
+    )
+    assert context.session_id == "test-1"
+    assert len(context.history) == 0
+    assert len(context.current_messages) == 1
+
