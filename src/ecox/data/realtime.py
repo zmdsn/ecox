@@ -166,7 +166,7 @@ def run_job():
 
     trigger_normal = CronTrigger(
         second=0,
-        minute='*/10',
+        minute='*/15',
         hour='9-11,13-14',
         timezone='Asia/Shanghai'
     )
