@@ -193,12 +193,34 @@ class EcoxA:
 
         # 添加工具结果
         if tool_results:
+            # 检查是否所有工具都失败了
+            all_failed = all("error" in result for result in tool_results.values())
+            any_success = any("error" not in result for result in tool_results.values())
+
             tool_summary = "\n\n## 工具执行结果\n\n"
-            for tool_name, result in tool_results.items():
-                if "error" not in result:
-                    tool_summary += f"**{tool_name}**:\n{result}\n\n"
-                else:
-                    tool_summary += f"**{tool_name}**: {result['error']}\n\n"
+
+            if all_failed:
+                # 所有工具都失败，明确告知LLM不要编造数据
+                tool_summary += "【重要】所有工具调用均失败，无法获取实际数据。\n\n请按以下格式回复用户：\n\n\"抱歉，无法获取数据。原因：[简短错误说明]\"\n\n不要提供任何编造的数据、分析或建议。保持回复简洁。\n\n错误详情：\n"
+                for tool_name, result in tool_results.items():
+                    error_msg = result.get('error', '未知错误')
+                    # 简化错误消息
+                    if 'Unable to fetch' in error_msg or 'fetching from akshare' in error_msg.lower():
+                        error_msg = "数据源接口异常"
+                    elif 'not found' in error_msg.lower():
+                        error_msg = "未找到相关数据"
+                    tool_summary += f"- {tool_name}: {error_msg}\n"
+            else:
+                # 部分或全部工具成功
+                for tool_name, result in tool_results.items():
+                    if "error" not in result:
+                        tool_summary += f"**{tool_name}**:\n{result}\n\n"
+                    else:
+                        # 工具失败，但其他工具可能成功
+                        tool_summary += f"**{tool_name}** 调用失败: {result['error']}\n\n"
+
+                if not any_success:
+                    tool_summary += "\n【注意】工具调用失败，请告知用户无法获取数据。\n"
 
             api_messages.append({
                 "role": "system",
