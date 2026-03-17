@@ -1,9 +1,13 @@
 """图表生成工具"""
 from typing import Dict, Any
+from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import plotly.io as pio
 import base64
 from .base import Tool
+from ...database import get_db_session
+from ... import models
+from ...utils import code_format
 
 # 全局 Kaleido 配置
 pio.defaults.default_width = 1200
@@ -113,3 +117,95 @@ class ChartTool(Tool):
         img_base64 = base64.b64encode(img_bytes).decode('utf-8')
 
         return img_base64
+
+    async def _plot_price_trend(
+        self,
+        stock_code: str,
+        period: str = "30d",
+        show_ma: bool = False,
+        show_volume: bool = True
+    ) -> Dict[str, Any]:
+        """绘制股价走势图
+
+        Args:
+            stock_code: 股票代码
+            period: 时间范围
+            show_ma: 是否显示均线
+            show_volume: 是否显示成交量
+
+        Returns:
+            包含 base64 图片的字典
+        """
+        # 计算日期范围
+        period_map = {
+            "7d": 7,
+            "30d": 30,
+            "90d": 90,
+            "180d": 180,
+            "1y": 365,
+            "3y": 365 * 3,
+            "5y": 365 * 5
+        }
+        days = period_map.get(period, 30)
+        start_date = datetime.now() - timedelta(days=days)
+
+        # 查询历史数据
+        formatted_code = code_format(stock_code)
+        with get_db_session() as session:
+            data = session.query(models.StockDailyData).filter(
+                models.StockDailyData.stock_code == formatted_code,
+                models.StockDailyData.trade_date >= start_date
+            ).order_by(models.StockDailyData.trade_date.asc()).all()
+
+        if not data:
+            return {
+                "error": f"未找到股票 {stock_code} 的历史数据",
+                "stock_code": stock_code,
+                "suggestion": "请检查股票代码或尝试其他时间范围"
+            }
+
+        # 提取数据
+        dates = [d.trade_date for d in data]
+        prices = [float(d.close) for d in data]
+        stock_name = data[0].stock_code if hasattr(data[0], 'stock_code') else stock_code
+
+        # 创建图表
+        fig = go.Figure()
+
+        # 添加收盘价折线
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=prices,
+            mode='lines',
+            name='收盘价',
+            line=dict(color='#EF4444', width=2)
+        ))
+
+        # 设置布局
+        fig.update_layout(
+            title=f'{stock_code} {stock_name} - 股价走势图（近{period}）',
+            xaxis_title='日期',
+            yaxis_title='价格（元）',
+            hovermode='x unified',
+            template='plotly_white',
+            font=dict(family='SimHei, Arial', size=12),
+            width=1200,
+            height=600
+        )
+
+        # 转换为 base64
+        img_base64 = self._to_base64(fig)
+
+        return {
+            "chart_type": "price_trend",
+            "image_base64": img_base64,
+            "format": "png",
+            "width": 1200,
+            "height": 600,
+            "title": f"{stock_code} {stock_name} - 股价走势图（近{period}）",
+            "data_summary": {
+                "start_date": str(dates[0]),
+                "end_date": str(dates[-1]),
+                "data_points": len(dates)
+            }
+        }

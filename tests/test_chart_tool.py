@@ -64,3 +64,44 @@ def test_to_base64():
             )
         else:
             raise
+
+
+@pytest.mark.asyncio
+async def test_plot_price_trend():
+    """测试股价走势图生成"""
+    from unittest.mock import Mock, patch, MagicMock
+    from ecox.agent.tools.chart import ChartTool
+
+    tool = ChartTool()
+
+    # Mock 数据库查询
+    mock_data = Mock()
+    mock_data.stock_code = "SH600809"
+    mock_data.trade_date = "2026-03-17"
+    mock_data.close = 160.77
+    mock_data.open = 159.5
+    mock_data.high = 161.0
+    mock_data.low = 158.0
+    mock_data.volume = 1000000
+
+    # Create mock session
+    mock_session = MagicMock()
+    mock_query = MagicMock()
+    mock_query.filter.return_value.order_by.return_value.all.return_value = [mock_data, mock_data, mock_data]
+    mock_session.__enter__ = Mock(return_value=mock_session)
+    mock_session.__exit__ = Mock(return_value=False)
+    mock_session.query.return_value = mock_query
+
+    with patch('ecox.agent.tools.chart.get_db_session', return_value=mock_session):
+        # Mock _to_base64 to avoid Kaleido issues in WSL2
+        with patch.object(tool, '_to_base64', return_value='mock_base64_string'):
+            result = await tool._plot_price_trend("600809", period="30d")
+
+            # 验证返回结构
+            assert "image_base64" in result
+            assert "chart_type" in result
+            assert result["chart_type"] == "price_trend"
+            assert "title" in result
+            assert "600809" in result["title"]
+            assert "data_summary" in result
+            assert result["image_base64"] == 'mock_base64_string'
