@@ -50,13 +50,39 @@ class BacktestTool(Tool):
 
     async def execute(
         self,
-        stock_code: str,
-        start_date: str,
-        end_date: str,
+        stock_code: str = None,
+        start_date: str = None,
+        end_date: str = None,
         strategy: str = "DoubleMA_Strategy",
-        initial_cash: float = 1000000
+        initial_cash: float = 1000000,
+        **kwargs
     ) -> Dict[str, Any]:
-        """执行回测"""
+        """执行回测
+
+        Args:
+            stock_code: 股票代码
+            start_date: 开始日期
+            end_date: 结束日期
+            strategy: 策略名称
+            initial_cash: 初始资金
+            **kwargs: 其他参数（兼容基类接口）
+
+        Returns:
+            回测结果或错误信息
+        """
+        # 验证必需参数
+        if not stock_code:
+            return {
+                "error": "缺少股票代码",
+                "hint": "请提供要回测的股票代码"
+            }
+
+        if not start_date or not end_date:
+            return {
+                "error": "缺少日期范围",
+                "hint": "请提供开始日期和结束日期（YYYY-MM-DD格式）",
+                "stock_code": stock_code
+            }
         import asyncio
 
         formatted_code = code_format(stock_code)

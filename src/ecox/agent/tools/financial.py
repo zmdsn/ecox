@@ -43,9 +43,10 @@ class FinancialAnalysisTool(Tool):
 
     async def execute(
         self,
-        stock_code: str,
+        stock_code: str = None,
         modules: List[str] = None,
-        report_date: str = None
+        report_date: str = None,
+        **kwargs
     ) -> Dict[str, Any]:
         """执行财务分析
 
@@ -53,10 +54,17 @@ class FinancialAnalysisTool(Tool):
             stock_code: 股票代码
             modules: 分析模块列表
             report_date: 报告日期
+            **kwargs: 其他参数（兼容基类接口）
 
         Returns:
             财务分析结果
         """
+        # 如果没有提供股票代码，返回提示
+        if not stock_code:
+            return {
+                "error": "缺少股票代码",
+                "hint": "请提供要分析的股票代码"
+            }
         from ...services.financial_analysis_service import FinancialAnalysisService
 
         # 格式化股票代码

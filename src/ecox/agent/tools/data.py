@@ -27,8 +27,23 @@ class DataQueryTool(Tool):
             "required": ["sql"]
         }
 
-    async def execute(self, sql: str) -> Dict[str, Any]:
-        """执行SQL查询"""
+    async def execute(self, sql: str = None, **kwargs) -> Dict[str, Any]:
+        """执行SQL查询
+
+        Args:
+            sql: SQL查询语句
+            **kwargs: 其他参数（兼容基类接口）
+
+        Returns:
+            查询结果或错误信息
+        """
+        # 如果没有提供 SQL，返回提示
+        if not sql:
+            return {
+                "error": "缺少SQL查询语句",
+                "hint": "请提供具体的SQL查询语句"
+            }
+
         from ...get_data import run_sql
 
         # 验证SQL是只读查询

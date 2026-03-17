@@ -28,8 +28,22 @@ class MarketDataTool(Tool):
             "required": ["stock_code"]
         }
 
-    async def execute(self, stock_code: str) -> Dict[str, Any]:
-        """获取行情数据"""
+    async def execute(self, stock_code: str = None, **kwargs) -> Dict[str, Any]:
+        """获取行情数据
+
+        Args:
+            stock_code: 股票代码
+            **kwargs: 其他参数（兼容基类接口）
+
+        Returns:
+            行情数据或错误信息
+        """
+        # 如果没有提供股票代码，返回提示
+        if not stock_code:
+            return {
+                "error": "缺少股票代码",
+                "hint": "请提供要查询的股票代码"
+            }
         from ...database import get_db_session
         from ... import models
 
