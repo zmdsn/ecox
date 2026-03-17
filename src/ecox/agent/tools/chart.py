@@ -235,3 +235,32 @@ class ChartTool(Tool):
             "indicator": indicator,
             "note": "需要先建立历史财务数据时间序列查询功能"
         }
+
+    async def _plot_backtest_returns(
+        self,
+        stock_code: str = None,
+        strategy: str = "DoubleMA",
+        initial_cash: float = 1000000,
+        start_date: str = None,
+        end_date: str = None
+    ) -> Dict[str, Any]:
+        """绘制回测收益曲线
+
+        Args:
+            stock_code: 股票代码（可选，用于单股票回测）
+            strategy: 策略名称
+            initial_cash: 初始资金
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            包含 base64 图片的字典
+        """
+        # TODO: 实现回测收益数据查询
+        # 当前返回占位符
+        return {
+            "error": "回测收益曲线功能待实现",
+            "stock_code": stock_code,
+            "strategy": strategy,
+            "note": "需要先集成回测引擎或查询回测结果表"
+        }

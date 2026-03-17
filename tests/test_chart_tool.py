@@ -122,3 +122,16 @@ async def test_plot_financial_trend():
     tool = ChartTool()
     result = await tool._plot_financial_trend("600809", indicator="roe", period="5y")
     assert "chart_type" in result or "error" in result
+
+
+@pytest.mark.asyncio
+async def test_plot_backtest_returns():
+    """测试回测收益曲线生成"""
+    from ecox.agent.tools.chart import ChartTool
+    tool = ChartTool()
+    result = await tool._plot_backtest_returns(
+        stock_code="600809",
+        strategy="DoubleMA",
+        initial_cash=1000000
+    )
+    assert "chart_type" in result or "error" in result
