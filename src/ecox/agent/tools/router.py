@@ -54,24 +54,66 @@ class ToolRouter:
         return results
 
     def _select_tools(self, context) -> List[str]:
-        """根据上下文选择工具"""
+        """根据上下文智能选择工具
+
+        改进：根据问题类型智能选择工具，避免混淆
+        - 行情查询（股价、最新价、涨跌幅等）→ 只调用 market_data
+        - 财务分析（ROE、盈利能力等）→ 只调用 financial_analysis
+        - 模糊或综合问题 → 调用两个工具
+        """
         tools = []
 
-        # 有股票代码实体
+        # 提取消息内容（转换为小写便于匹配）
+        content = " ".join([msg.content for msg in context.current_messages]).lower()
+
+        # 定义关键词分类
+        market_keywords = [
+            "股价", "最新价", "实时", "涨跌幅", "行情", "收盘", "开盘",
+            "最高", "最低", "成交量", "成交额", "市值", "价格",
+            "最新", "当前", "现在", "今日"
+        ]
+        financial_keywords = [
+            "财务", "分析", "roe", "盈利", "偿债", "现金流", "毛利率",
+            "净利润", "资产", "负债", "成长性", "杜邦", "营运",
+            "指标", "能力", "状况"
+        ]
+
+        # 判断问题类型
+        is_market_query = any(kw in content for kw in market_keywords)
+        is_financial_query = any(kw in content for kw in financial_keywords)
+
+        # 有股票代码实体时，根据问题类型智能选择工具
         if context.entities.stock_codes:
-            tools.append("financial_analysis")
-            tools.append("market_data")
+            if is_market_query and not is_financial_query:
+                # 纯行情查询 → 只调用行情工具（避免返回历史财务数据）
+                tools.append("market_data")
+                logger.info(f"✅ 选择行情工具（仅行情）: 检测到行情查询关键词")
+            elif is_financial_query and not is_market_query:
+                # 纯财务分析 → 只调用财务工具（避免不必要的行情查询）
+                tools.append("financial_analysis")
+                logger.info(f"✅ 选择财务工具（仅财务）: 检测到财务分析关键词")
+            else:
+                # 模糊或两者都有 → 调用两个工具（综合分析）
+                tools.append("financial_analysis")
+                tools.append("market_data")
+                logger.info(f"✅ 选择双工具（综合分析）: 问题模糊或包含多维度需求")
+        else:
+            # 没有股票代码但有其他实体时，默认行为
+            if context.entities.stock_codes:
+                # 兼容旧逻辑：有股票代码就调用两个工具
+                tools.append("financial_analysis")
+                tools.append("market_data")
 
         # 有日期实体
         if context.entities.dates:
             tools.append("data_query")
 
-        # 检查关键词
-        content = " ".join([msg.content for msg in context.current_messages])
-
+        # 回测和策略关键词
         if "回测" in content or "策略" in content:
-            tools.append("backtest")
+            if "backtest" not in tools:
+                tools.append("backtest")
 
+        # SQL查询关键词
         if "查询" in content or "SQL" in content or "sql" in content.lower():
             if "data_query" not in tools:
                 tools.append("data_query")
