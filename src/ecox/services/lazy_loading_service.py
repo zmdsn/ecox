@@ -102,11 +102,6 @@ class LazyLoadingService:
 
             return fresh_data
 
-            # 更新内存缓存
-            self._update_memory_cache(formatted_code, report_date, fresh_data)
-
-            return fresh_data
-
         # 如果下载失败，返回数据库中的旧数据（如果有）
         if db_data:
             logger.warning(

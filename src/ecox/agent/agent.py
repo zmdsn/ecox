@@ -103,20 +103,112 @@ class EcoxA:
     def _needs_tools(self, context: Context) -> bool:
         """判断是否需要调用工具
 
+        改进的判断逻辑：
+        1. 简单问候、介绍类问题不需要工具
+        2. 只有需要实时数据或具体计算时才使用工具
+        3. 一般知识和概念性问题直接回答
+
         Args:
             context: 对话上下文
 
         Returns:
             是否需要工具
         """
-        # 有实体时需要工具
+        # 空消息或只有问候语，不需要工具
+        if not context.current_messages:
+            return False
+
+        content = " ".join([msg.content for msg in context.current_messages]).strip()
+
+        # 简单问候 - 不需要工具
+        greetings = ["你好", "您好", "hi", "hello", "早上好", "下午好", "晚上好", "嗨", "在吗"]
+        if content.lower() in greetings or content in ["你是谁", "介绍自己"]:
+            return False
+
+        # 简单概念性问题 - 不需要工具
+        concepts = [
+            "什么是", "如何", "怎么", "为什么", "什么是", "如何使用", "怎么用",
+            "什么是股票", "什么是基金", "什么是ROE", "什么是现金流"
+        ]
+        if any(content.startswith(q) for q in concepts):
+            return False
+
+        # 有具体实体（股票代码、日期）需要工具
         if context.entities.stock_codes or context.entities.dates:
             return True
 
-        # 检查关键词
-        content = " ".join([msg.content for msg in context.current_messages])
-        keywords = ["分析", "查询", "回测", "策略", "财务", "行情", "股价"]
-        return any(keyword in content for keyword in keywords)
+        # 需要实时数据或具体计算的工具关键词
+        data_keywords = ["查询", "股价", "最新", "实时", "涨跌幅", "成交量", "市值", "市盈率"]
+        calculation_keywords = ["回测", "策略", "分析", "计算", "财务指标", "ROE", "毛利率", "现金流"]
+
+        # 判断是否需要数据
+        has_data_need = any(kw in content for kw in data_keywords)
+        has_calc_need = any(kw in content for kw in calculation_keywords)
+
+        # 如果提到具体的股票名称但不是概念性问题
+        # (例如"茅台怎么样"而不是"什么是茅台")
+        if has_data_need or has_calc_need:
+            return True
+
+        # 其他情况不需要工具
+        return False
+
+    async def _try_direct_answer(self, messages: List[Message], context: Context) -> str:
+        """尝试让LLM直接回答，如果需要数据则返回None
+
+        Args:
+            messages: 用户消息
+            context: 对话上下文
+
+        Returns:
+            LLM的回答，如果需要数据则返回None
+        """
+        # 构建系统提示，要求LLM判断是否需要数据
+        check_prompt = """你是Ecox，A股投资分析智能体。用户问了一个问题，你需要判断：
+
+1. 如果这个问题可以基于你的知识直接回答（如投资概念、方法说明、一般建议等），请直接回答。在回答末尾加上 [DIRECT_ANSWER]
+2. 如果这个问题需要查询具体的股票数据、实时行情、或进行财务计算，请回复：NEED_DATA
+
+问题：{question}
+
+请直接给出你的回答或判断。"""
+
+        content = " ".join([msg.content for msg in messages])
+        api_messages = [
+            {"role": "system", "content": check_prompt.format(question=content)},
+            {"role": "user", "content": content}
+        ]
+
+        try:
+            response = await self._completion(api_messages, stream=False)
+
+            # 检查是否标记为直接回答
+            if "[DIRECT_ANSWER]" in response:
+                # 移除标记
+                return response.replace("[DIRECT_ANSWER]", "").strip()
+            elif "NEED_DATA" in response:
+                return None
+            else:
+                # 没有明确标记，默认认为需要数据
+                return None
+
+        except Exception as e:
+            logger.error(f"Direct answer check failed: {e}")
+            return None
+
+    def _requires_data_supplement(self, context: Context) -> bool:
+        """判断是否需要补充数据
+
+        有些问题可以用知识+少量数据回答，有些需要完整数据
+
+        Args:
+            context: 对话上下文
+
+        Returns:
+            是否需要补充数据
+        """
+        # 如果有股票代码实体，通常需要数据
+        return bool(context.entities.stock_codes)
 
     async def _execute_tools(self, context: Context) -> Dict[str, Any]:
         """执行工具调用
