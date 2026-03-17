@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ecox.agent.models.message import Base
-from ecox.database import get_engine
+from ecox.database import DatabaseSession
 
 
 def init_tables():
@@ -19,7 +19,8 @@ def init_tables():
 
     try:
         # 获取数据库引擎
-        engine = get_engine()
+        db = DatabaseSession()
+        engine = db.get_engine()
 
         # 创建所有表
         Base.metadata.create_all(engine)

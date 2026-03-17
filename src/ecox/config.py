@@ -61,7 +61,7 @@ class Config:
             "host": os.getenv("PG_HOST", "localhost"),
             "port": int(os.getenv("PG_PORT", 5432)),
             "user": os.getenv("PG_USER", "zmdsn"),
-            "password": os.getenv("PG_PASSWORD", ""),
+            "password": os.getenv("PG_PASSWORD", "zmdsnsdmz"),
             "database": os.getenv("PG_DATABASE", "stock"),
             "options": "-c client_encoding=utf8",
         }

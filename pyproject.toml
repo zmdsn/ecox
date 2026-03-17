@@ -15,6 +15,7 @@ dependencies = [
     "fastmcp>=2.13.3",
     "ipykernel>=7.1.0",
     "jupyter>=1.1.1",
+    "litellm>=1.82.3",
     "matplotlib>=3.10.7",
     "mplfinance>=0.12.10b0",
     "notebook>=7.5.3",

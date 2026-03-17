@@ -103,8 +103,13 @@ class LazyLoadingService:
             return db_data
 
         raise ExternalDataSourceError(
-            f"Unable to fetch financial data for {formatted_code}",
-            details={"stock_code": stock_code, "report_date": report_date}
+            f"数据源接口异常：无法获取 {formatted_code} 的财务数据。akshare 接口当前不可用（可能是东方财富网页结构变化）。",
+            details={
+                "stock_code": stock_code,
+                "report_date": report_date,
+                "reason": "akshare library bug - 东方财富网页结构变化",
+                "suggestion": "建议使用其他数据源或等待 akshare 更新"
+            }
         )
 
     def _check_memory_cache(
@@ -216,7 +221,12 @@ class LazyLoadingService:
                 }
 
         except Exception as e:
-            logger.error(f"Error fetching from akshare: {e}")
+            error_msg = str(e)
+            if "'NoneType' object is not subscriptable" in error_msg:
+                logger.error(f"akshare 接口异常：东方财富网页结构可能已变化，导致数据解析失败。股票代码: {stock_code}")
+                logger.error(f"建议：1) 等待 akshare 更新修复 2) 使用其他数据源 3) 从本地数据库查询")
+            else:
+                logger.error(f"Error fetching from akshare: {e}")
             return None
         finally:
             self._download_queue.discard(task_id)

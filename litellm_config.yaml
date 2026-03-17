@@ -25,10 +25,16 @@ model_list:
       api_base: https://dashscope.aliyuncs.com/compatible-mode/v1
       api_key: os.environ/DASHSCOPE_API_KEY
 
+  - model_name: qwen3-code
+    litellm_params:
+      model: openai/qwen3-code
+      api_base: http://121.46.230.100:8000/v1
+      api_key: sk-123456
+
 # 通用设置
 litellm_settings:
   drop_params: true  # 删除不支持的参数
-  set_verbose: false  # 详细日志
+  set_verbose: true  # 详细日志（调试模式）
   success_callback: None  # 成功回调
   timeout: 300  # 超时时间（秒）
   max_retries: 3  # 最大重试次数
