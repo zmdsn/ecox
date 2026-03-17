@@ -42,3 +42,4 @@ src/ecox/alembic/
 
 # Git worktrees
 .worktrees/
+logs/
