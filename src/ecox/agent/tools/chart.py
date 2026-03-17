@@ -264,3 +264,26 @@ class ChartTool(Tool):
             "strategy": strategy,
             "note": "需要先集成回测引擎或查询回测结果表"
         }
+
+    async def _plot_dupont_analysis(
+        self,
+        stock_code: str,
+        year: int = None
+    ) -> Dict[str, Any]:
+        """绘制杜邦分析图
+
+        Args:
+            stock_code: 股票代码
+            year: 年份（可选，默认最新年份）
+
+        Returns:
+            包含 base64 图片的字典
+        """
+        # TODO: 实现杜邦分析数据查询和可视化
+        # 当前返回占位符
+        return {
+            "error": "杜邦分析图功能待实现",
+            "stock_code": stock_code,
+            "year": year,
+            "note": "需要先集成杜邦分析服务并实现可视化逻辑"
+        }

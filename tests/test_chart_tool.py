@@ -135,3 +135,12 @@ async def test_plot_backtest_returns():
         initial_cash=1000000
     )
     assert "chart_type" in result or "error" in result
+
+
+@pytest.mark.asyncio
+async def test_plot_dupont_analysis():
+    """测试杜邦分析图生成"""
+    from ecox.agent.tools.chart import ChartTool
+    tool = ChartTool()
+    result = await tool._plot_dupont_analysis("600809", year=2024)
+    assert "chart_type" in result or "error" in result
