@@ -254,11 +254,12 @@ class LazyLoadingService:
             return {
                 'stock_code': stock_code,
                 'stock_name': stock_name,
-                'profit_df': profit_df,
+                'profit_df': profit_df,  # 完整的历年DataFrame
                 'balance_df': balance_df,
                 'cashflow_df': cashflow_df,
                 'source': 'sina',
-                'fetch_time': datetime.now()
+                'fetch_time': datetime.now(),
+                'has_history': True  # 标记包含历史数据
             }
 
         except Exception as e:
@@ -272,7 +273,7 @@ class LazyLoadingService:
             data: 新浪接口返回的原始数据
 
         Returns:
-            转换后的标准格式数据
+            转换后的标准格式数据，包含完整历史数据
         """
         profit_df = data.get('profit_df')
         balance_df = data.get('balance_df')
@@ -319,6 +320,8 @@ class LazyLoadingService:
             '营业成本': 'operating_cost',
             '营业利润': 'operating_profit',
             '利润总额': 'total_profit',
+            '基本每股收益': 'eps',
+            '每股净资产': 'bps',
         }
 
         balance_field_mapping = {
@@ -341,40 +344,32 @@ class LazyLoadingService:
             '期末现金及现金等价物余额': 'cash_balance',
         }
 
-        # 转换利润表
+        # 转换最新数据（第一行）
         profit_sheet = {}
         if profit_df is not None and not profit_df.empty:
             row = profit_df.iloc[0]
             raw_dict = row.to_dict()
-            # 应用字段映射
             for cn_name, en_name in profit_field_mapping.items():
                 if cn_name in raw_dict:
                     profit_sheet[en_name] = raw_dict[cn_name]
-            # 保留原始字段
             profit_sheet.update(raw_dict)
 
-        # 转换资产负债表
         balance_sheet = {}
         if balance_df is not None and not balance_df.empty:
             row = balance_df.iloc[0]
             raw_dict = row.to_dict()
-            # 应用字段映射
             for cn_name, en_name in balance_field_mapping.items():
                 if cn_name in raw_dict:
                     balance_sheet[en_name] = raw_dict[cn_name]
-            # 保留原始字段
             balance_sheet.update(raw_dict)
 
-        # 转换现金流量表
         cash_flow_sheet = {}
         if cashflow_df is not None and not cashflow_df.empty:
             row = cashflow_df.iloc[0]
             raw_dict = row.to_dict()
-            # 应用字段映射
             for cn_name, en_name in cashflow_field_mapping.items():
                 if cn_name in raw_dict:
                     cash_flow_sheet[en_name] = raw_dict[cn_name]
-            # 保留原始字段
             cash_flow_sheet.update(raw_dict)
 
         return {
@@ -385,8 +380,13 @@ class LazyLoadingService:
             'profit_sheet': profit_sheet,
             'balance_sheet': balance_sheet,
             'cash_flow_sheet': cash_flow_sheet,
+            # 保留完整的DataFrame用于历史查询
+            'profit_df': profit_df,
+            'balance_df': balance_df,
+            'cashflow_df': cashflow_df,
             'source': data['source'],
-            'fetch_time': data.get('fetch_time')
+            'fetch_time': data.get('fetch_time'),
+            'has_history': True
         }
 
     def _fetch_from_eastmoney(self, ak_code: str, stock_code: str) -> dict[str, Any] | None:
