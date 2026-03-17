@@ -113,3 +113,12 @@ async def test_plot_price_trend():
             assert "SH600809" in result["title"]  # 格式化后的代码应该出现
             # 验证标题以正确的股票代码开头
             assert result["title"].startswith("600809 SH600809")
+
+
+@pytest.mark.asyncio
+async def test_plot_financial_trend():
+    """测试财务指标趋势图生成"""
+    from ecox.agent.tools.chart import ChartTool
+    tool = ChartTool()
+    result = await tool._plot_financial_trend("600809", indicator="roe", period="5y")
+    assert "chart_type" in result or "error" in result

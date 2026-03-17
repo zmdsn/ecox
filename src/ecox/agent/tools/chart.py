@@ -210,3 +210,28 @@ class ChartTool(Tool):
                 "data_points": len(dates)
             }
         }
+
+    async def _plot_financial_trend(
+        self,
+        stock_code: str,
+        indicator: str = "roe",
+        period: str = "5y"
+    ) -> Dict[str, Any]:
+        """绘制财务指标趋势图
+
+        Args:
+            stock_code: 股票代码
+            indicator: 财务指标名称
+            period: 年份范围
+
+        Returns:
+            包含 base64 图片的字典
+        """
+        # TODO: 实现历史财务数据查询
+        # 当前返回占位符
+        return {
+            "error": "财务指标趋势图功能待实现",
+            "stock_code": stock_code,
+            "indicator": indicator,
+            "note": "需要先建立历史财务数据时间序列查询功能"
+        }
