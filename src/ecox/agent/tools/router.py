@@ -5,6 +5,7 @@ from .financial import FinancialAnalysisTool
 from .market import MarketDataTool
 from .data import DataQueryTool
 from .backtest import BacktestTool
+from .chart import ChartTool
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class ToolRouter:
             "market_data": MarketDataTool(),
             "data_query": DataQueryTool(),
             "backtest": BacktestTool(),
+            "chart": ChartTool(),
         }
 
     async def execute(self, context) -> Dict[str, Any]:
@@ -78,6 +80,12 @@ class ToolRouter:
             "指标", "能力", "状况"
         ]
 
+        # 图表相关关键词
+        chart_keywords = [
+            "图表", "走势图", "趋势图", "K线", "蜡烛图", "收益曲线",
+            "可视化", "绘图", "画图", "生成图", "展示图"
+        ]
+
         # 判断问题类型
         is_market_query = any(kw in content for kw in market_keywords)
         is_financial_query = any(kw in content for kw in financial_keywords)
@@ -118,6 +126,11 @@ class ToolRouter:
             if "data_query" not in tools:
                 tools.append("data_query")
 
+        # 图表生成关键词
+        if any(kw in content for kw in chart_keywords):
+            if "chart" not in tools:
+                tools.append("chart")
+
         return tools
 
     def _prepare_args(self, tool, context) -> Dict[str, Any]:
@@ -150,5 +163,24 @@ class ToolRouter:
                     "sql": f"SELECT * FROM stock_daily_data WHERE stock_code = '{stock_code}' ORDER BY trade_date DESC LIMIT 10"
                 }
             return {}
+
+        elif tool.name == "chart":
+            # 准备图表参数
+            content = " ".join([msg.content for msg in context.current_messages]).lower()
+            chart_type = "price_trend"  # 默认
+
+            # 根据关键词推断图表类型
+            if "财务" in content or "指标" in content:
+                chart_type = "financial_trend"
+            elif "回测" in content or "收益" in content:
+                chart_type = "backtest"
+            elif "杜邦" in content:
+                chart_type = "dupont"
+
+            return {
+                "chart_type": chart_type,
+                "stock_code": context.entities.stock_codes[0] if context.entities.stock_codes else None,
+                "period": "30d"
+            }
 
         return {}
