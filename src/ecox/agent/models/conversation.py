@@ -1,65 +1,35 @@
-"""Conversation ORM model for agent conversations."""
-
+"""对话数据模型"""
 from datetime import datetime
-from typing import Optional, Any, Dict
-
+from typing import Optional
 from sqlalchemy import Column, Integer, String, DateTime, JSON
 from sqlalchemy.orm import relationship
-
 from .message import Base
 
 
 class Conversation(Base):
-    """Conversation model for storing agent conversation sessions.
-
-    Attributes:
-        id: Primary key
-        session_id: Unique session identifier
-        metadata: Additional metadata as JSON
-        created_at: Timestamp when conversation was created
-        updated_at: Timestamp when conversation was last updated
-        messages: Relationship to Message objects
-    """
-
+    """对话模型"""
     __tablename__ = "agent_conversations"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(String(100), unique=True, nullable=False, index=True)
     meta_data = Column("metadata", JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
+    # 关系
     messages = relationship("Message", backref="conversation", cascade="all, delete-orphan")
 
     def __init__(
         self,
         session_id: str,
-        meta_data: Optional[Dict[str, Any]] = None,
         id: Optional[int] = None,
-        created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None,
+        metadata: Optional[dict] = None
     ):
-        """Initialize a Conversation instance.
-
-        Args:
-            session_id: Unique session identifier
-            meta_data: Optional metadata dictionary
-            id: Optional specific ID (for testing/migration)
-            created_at: Optional creation timestamp
-            updated_at: Optional update timestamp
-        """
+        self.id = id
         self.session_id = session_id
-        self.meta_data = meta_data
-        if id is not None:
-            self.id = id
-        if created_at is not None:
-            self.created_at = created_at
-        if updated_at is not None:
-            self.updated_at = updated_at
+        self.meta_data = metadata
+        self.created_at = datetime.now()
+        self.updated_at = datetime.now()
 
-    def __repr__(self) -> str:
-        """Return string representation of Conversation."""
-        return (
-            f"<Conversation(id={self.id}, session_id='{self.session_id}', "
-            f"messages_count={len(self.messages)})>"
-        )
+        # Expose metadata as a runtime attribute
+        self.__dict__['metadata'] = metadata
