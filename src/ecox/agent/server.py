@@ -1,8 +1,12 @@
 """FastAPI 服务器"""
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import logging
+import json
+import uuid
+import time
 
 from .agent import EcoxA
 from .models.message import Message
@@ -68,6 +72,18 @@ async def list_models():
         "object": "list",
         "data": [
             {
+                "id": "ecox",
+                "object": "model",
+                "created": 1677610602,
+                "owned_by": "ecox"
+            },
+            {
+                "id": "qwen3-code",
+                "object": "model",
+                "created": 1677610602,
+                "owned_by": "ecox"
+            },
+            {
                 "id": "gpt-4",
                 "object": "model",
                 "created": 1677610602,
@@ -83,21 +99,37 @@ async def list_models():
     }
 
 
-@app.post("/v1/chat/completions", response_model=ChatResponse)
+@app.post("/v1/chat/completions")
 async def chat_completions(request: ChatRequest):
-    """OpenAI 兼容的聊天完成端点"""
-    import time
-    import uuid
+    """OpenAI 兼容的聊天完成端点（支持流式和非流式）"""
 
+    # 转换消息格式
+    messages = [
+        Message(role=msg.role, content=msg.content)
+        for msg in request.messages
+    ]
+
+    # 流式响应
+    if request.stream:
+        return await _stream_chat_completion(request, messages)
+
+    # 非流式响应
+    return await _nonstream_chat_completion(request, messages)
+
+
+async def _nonstream_chat_completion(request: ChatRequest, messages: List[Message]) -> ChatResponse:
+    """非流式聊天完成"""
     try:
-        # 转换消息格式
-        messages = [
-            Message(role=msg.role, content=msg.content)
-            for msg in request.messages
-        ]
-
         # 调用智能体
-        response_content = await agent.chat(messages, stream=request.stream)
+        response_content = await agent.chat(messages, stream=False)
+
+        # 确保是字符串
+        if hasattr(response_content, '__aiter__'):
+            # 如果是生成器，收集所有内容
+            chunks = []
+            async for chunk in response_content:
+                chunks.append(chunk)
+            response_content = ''.join(chunks)
 
         # 构建OpenAI格式响应
         response = ChatResponse(
@@ -124,6 +156,66 @@ async def chat_completions(request: ChatRequest):
     except Exception as e:
         logger.error(f"Chat completion failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _stream_chat_completion(request: ChatRequest, messages: List[Message]):
+    """流式聊天完成"""
+    try:
+        # 生成唯一 ID
+        completion_id = str(uuid.uuid4())
+        created_time = int(time.time())
+        model_name = request.model or "gpt-4"
+
+        # 调用智能体获取流式响应
+        response_stream = await agent.chat(messages, stream=True)
+
+        async def generate():
+            """生成 SSE 格式的流式响应"""
+            try:
+                # response_stream 应该是一个异步生成器
+                async for chunk in response_stream:
+                    if chunk:
+                        yield f"data: {json.dumps(_create_sse_chunk(completion_id, created_time, model_name, chunk), ensure_ascii=False)}\n\n"
+
+                # 发送结束标记
+                yield "data: [DONE]\n\n"
+
+            except Exception as e:
+                logger.error(f"Stream generation error: {e}", exc_info=True)
+                error_chunk = f"\n\n[错误: {str(e)}]"
+                yield f"data: {json.dumps(_create_sse_chunk(completion_id, created_time, model_name, error_chunk), ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Stream chat completion failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _create_sse_chunk(completion_id: str, created: int, model: str, content: str) -> dict:
+    """创建 SSE 数据块"""
+    return {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "delta": {
+                "content": content
+            },
+            "finish_reason": None
+        }]
+    }
 
 
 @app.get("/")

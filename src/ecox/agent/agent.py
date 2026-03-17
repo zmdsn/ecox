@@ -17,10 +17,11 @@ class EcoxA:
 
     def __init__(
         self,
-        model: str = "gpt-4",
+        model: str = "ecox",
         max_history: int = 10,
         timeout: float = 30.0,
-        litellm_base_url: str = "http://localhost:4000"
+        litellm_base_url: str = "http://121.46.230.100:8000",
+        api_key: str = "sk-123456"
     ):
         """初始化智能体
 
@@ -28,17 +29,30 @@ class EcoxA:
             model: 使用的模型名称
             max_history: 最大历史消息数
             timeout: 请求超时时间
-            litellm_base_url: LiteLLM API地址
+            litellm_base_url: LLM API地址
+            api_key: API 密钥
         """
-        self.model = model
+        # 模型名称映射
+        self.model_mapping = {
+            "ecox": "qwen3-code",
+            "qwen3-code": "qwen3-code",
+            "gpt-4": "gpt-4",
+            "gpt-3.5-turbo": "gpt-3.5-turbo"
+        }
+
+        # 获取实际模型名称
+        self.model = self.model_mapping.get(model, model)
+        self.model_name = model  # 保存用户请求的模型名称
+
         self.max_history = max_history
         self.timeout = timeout
         self.litellm_base_url = litellm_base_url
+        self.api_key = api_key
 
         self.conversation_manager = ConversationManager(max_history=max_history)
         self.tool_router = ToolRouter()
 
-    async def chat(self, messages: List[Message], stream: bool = False) -> str:
+    async def chat(self, messages: List[Message], stream: bool = False):
         """主对话方法
 
         Args:
@@ -46,7 +60,7 @@ class EcoxA:
             stream: 是否使用流式响应
 
         Returns:
-            AI响应内容
+            AI响应内容（字符串或异步生成器）
         """
         # 获取上下文
         context = self.conversation_manager.get_context(messages)
@@ -56,17 +70,35 @@ class EcoxA:
             # 执行工具
             tool_results = await self._execute_tools(context)
 
-            # 使用工具结果生成回复
+            # 使用工具结果生成回复（工具调用不支持流式）
             response = await self._generate_with_tools(messages, tool_results)
+
+            if stream and isinstance(response, str):
+                # 如果请求流式但得到字符串，转换为异步生成器
+                response = self._string_to_async_generator(response)
         else:
             # 直接生成回复
-            response = await self._generate_direct(messages)
+            response = await self._generate_direct(messages, stream=stream)
 
-        # 保存对话
-        session_id = messages[0].session_id or f"session_{datetime.now().timestamp()}"
-        self.conversation_manager.save(session_id, messages, response)
+        # 保存对话（仅非流式且有完整内容）
+        if not stream and isinstance(response, str):
+            session_id = messages[0].session_id or f"session_{datetime.now().timestamp()}"
+            self.conversation_manager.save(session_id, messages, response)
 
         return response
+
+    async def _string_to_async_generator(self, text: str, chunk_size: int = 10):
+        """将字符串转换为异步生成器
+
+        Args:
+            text: 要转换的文本
+            chunk_size: 每次生成的字符数
+
+        Yields:
+            文本块
+        """
+        for i in range(0, len(text), chunk_size):
+            yield text[i:i + chunk_size]
 
     def _needs_tools(self, context: Context) -> bool:
         """判断是否需要调用工具
@@ -119,20 +151,21 @@ class EcoxA:
 
         return response
 
-    async def _generate_direct(self, messages: List[Message]) -> str:
+    async def _generate_direct(self, messages: List[Message], stream: bool = False) -> str:
         """直接生成回复（不使用工具）
 
         Args:
             messages: 用户消息
+            stream: 是否使用流式响应
 
         Returns:
-            AI回复
+            AI回复（字符串或生成器）
         """
         # 构建消息
         api_messages = self._build_messages(messages)
 
         # 调用API
-        response = await self._completion(api_messages)
+        response = await self._completion(api_messages, stream=stream)
 
         return response
 
@@ -181,31 +214,98 @@ class EcoxA:
 
         return api_messages
 
-    async def _completion(self, messages: List[Dict[str, str]]) -> str:
+    async def _completion(self, messages: List[Dict[str, str]], stream: bool = False):
         """调用LLM API
 
         Args:
             messages: 消息列表
+            stream: 是否使用流式响应
 
         Returns:
-            AI回复内容
+            AI回复内容（非流式）或生成器（流式）
         """
         try:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": 0.7,
+                "stream": stream
+            }
+
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.litellm_base_url}/v1/chat/completions",
-                    json={
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": 0.7
-                    }
-                )
-
-                response.raise_for_status()
-                data = response.json()
-
-                return data["choices"][0]["message"]["content"]
+                if stream:
+                    # 流式响应
+                    response = await client.post(
+                        f"{self.litellm_base_url}/v1/chat/completions",
+                        json=payload,
+                        headers=headers
+                    )
+                    response.raise_for_status()
+                    return self._stream_response(response)
+                else:
+                    # 非流式响应
+                    response = await client.post(
+                        f"{self.litellm_base_url}/v1/chat/completions",
+                        json=payload,
+                        headers=headers
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
 
         except Exception as e:
             logger.error(f"LLM API call failed: {e}")
-            return f"抱歉，我遇到了一些问题：{str(e)}"
+            error_msg = f"抱歉，我遇到了一些问题：{str(e)}"
+            if stream:
+                # 流式错误处理
+                async def error_generator():
+                    yield error_msg
+                return error_generator()
+            return error_msg
+
+    async def _stream_response(self, response):
+        """处理流式响应
+
+        Args:
+            response: httpx 响应对象
+
+        Yields:
+            流式内容块
+        """
+        import json
+
+        try:
+            async for line in response.aiter_lines():
+                if not line.strip():
+                    continue
+
+                if line.startswith("data:"):
+                    data_str = line[5:].strip()
+                    if data_str == "[DONE]":
+                        break
+
+                    try:
+                        data = json.loads(data_str)
+                        if "choices" in data and len(data["choices"]) > 0:
+                            delta = data["choices"][0].get("delta", {})
+
+                            # 处理 content 字段
+                            if "content" in delta and delta["content"]:
+                                yield delta["content"]
+
+                            # 处理 reasoning 字段（某些模型有）
+                            if "reasoning" in delta and delta["reasoning"]:
+                                yield delta["reasoning"]
+
+                    except (json.JSONDecodeError, KeyError) as e:
+                        logger.debug(f"Failed to parse stream chunk: {e}")
+                        continue
+
+        except Exception as e:
+            logger.error(f"Stream processing error: {e}")
+            yield f"\n\n[流式传输错误: {str(e)}]"
