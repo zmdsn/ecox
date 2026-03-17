@@ -87,8 +87,16 @@ class LazyLoadingService:
         fresh_data = self._fetch_from_akshare(formatted_code)
 
         if fresh_data:
-            # Step 4: 存储到数据库
-            self._save_to_database(fresh_data)
+            # Step 4: 存储到数据库（仅支持东方财富格式）
+            if fresh_data.get('source') == 'eastmoney':
+                self._save_to_database(fresh_data)
+            else:
+                logger.info(f"Skipping database save for {fresh_data.get('source')} data (format not supported)")
+
+            # 更新内存缓存
+            self._update_memory_cache(formatted_code, report_date, fresh_data)
+
+            return fresh_data
 
             # 更新内存缓存
             self._update_memory_cache(formatted_code, report_date, fresh_data)
@@ -174,7 +182,10 @@ class LazyLoadingService:
             return None
 
     def _fetch_from_akshare(self, stock_code: str) -> dict[str, Any] | None:
-        """从 akshare 获取数据（带并发控制）"""
+        """从 akshare 获取数据（带并发控制）
+
+        优先使用同花顺接口，如果失败则尝试东方财富接口
+        """
         task_id = stock_code
 
         # 防止重复下载
@@ -191,45 +202,101 @@ class LazyLoadingService:
 
         try:
             with self._downloading:
-                logger.info(f"Downloading financial data for {stock_code} from akshare")
-
-                import akshare as ak
+                logger.info(f"Downloading financial data for {stock_code}")
 
                 # 去掉前缀用于 akshare
                 ak_code = stock_code[2:]
 
-                # 并行下载三大报表
-                profit_df = ak.stock_profit_sheet_by_report_em(symbol=ak_code)
-                balance_df = ak.stock_balance_sheet_by_report_em(symbol=ak_code)
-                cashflow_df = ak.stock_cash_flow_sheet_by_report_em(symbol=ak_code)
+                # 优先尝试新浪财经接口（数据完整且稳定）
+                data = self._fetch_from_sina(ak_code, stock_code)
+                if data:
+                    return data
 
-                # 获取股票名称
-                try:
-                    stock_info = ak.stock_individual_info_em(symbol=ak_code)
-                    stock_name = stock_info.get('股票简称', 'Unknown')
-                except:
-                    stock_name = 'Unknown'
+                # 如果新浪失败，尝试同花顺接口
+                logger.info(f"Sina interface failed, trying THS for {stock_code}")
+                data = self._fetch_from_ths(ak_code, stock_code)
+                if data:
+                    return data
 
-                return {
-                    'stock_code': stock_code,
-                    'stock_name': stock_name,
-                    'profit_df': profit_df,
-                    'balance_df': balance_df,
-                    'cashflow_df': cashflow_df,
-                    'source': 'akshare',
-                    'fetch_time': datetime.now()
-                }
+                # 如果同花顺也失败，尝试东方财富接口（可能失效）
+                logger.info(f"THS interface failed, trying Eastmoney for {stock_code}")
+                data = self._fetch_from_eastmoney(ak_code, stock_code)
+                if data:
+                    return data
+
+                return None
+
+        except Exception as e:
+            logger.error(f"Error fetching from akshare: {e}")
+            return None
+        finally:
+            self._download_queue.discard(task_id)
+
+    def _fetch_from_sina(self, ak_code: str, stock_code: str) -> dict[str, Any] | None:
+        """从新浪财经接口获取财务数据（推荐）"""
+        try:
+            import akshare as ak
+
+            logger.info(f"Fetching from Sina (新浪) for {ak_code}")
+
+            # 并行获取三大报表
+            profit_df = ak.stock_financial_report_sina(stock=stock_code.lower(), symbol="利润表")
+            balance_df = ak.stock_financial_report_sina(stock=stock_code.lower(), symbol="资产负债表")
+            cashflow_df = ak.stock_financial_report_sina(stock=stock_code.lower(), symbol="现金流量表")
+
+            # 获取股票名称
+            stock_name = 'Unknown'
+
+            return {
+                'stock_code': stock_code,
+                'stock_name': stock_name,
+                'profit_df': profit_df,
+                'balance_df': balance_df,
+                'cashflow_df': cashflow_df,
+                'source': 'sina',
+                'fetch_time': datetime.now()
+            }
+
+        except Exception as e:
+            logger.error(f"Error fetching from Sina: {e}")
+            return None
+
+    def _fetch_from_eastmoney(self, ak_code: str, stock_code: str) -> dict[str, Any] | None:
+        """从东方财富接口获取财务数据（原有方法，可能失效）"""
+        try:
+            import akshare as ak
+
+            logger.info(f"Fetching from Eastmoney for {ak_code}")
+
+            # 并行下载三大报表
+            profit_df = ak.stock_profit_sheet_by_report_em(symbol=ak_code)
+            balance_df = ak.stock_balance_sheet_by_report_em(symbol=ak_code)
+            cashflow_df = ak.stock_cash_flow_sheet_by_report_em(symbol=ak_code)
+
+            # 获取股票名称
+            try:
+                stock_info = ak.stock_individual_info_em(symbol=ak_code)
+                stock_name = stock_info.get('股票简称', 'Unknown')
+            except:
+                stock_name = 'Unknown'
+
+            return {
+                'stock_code': stock_code,
+                'stock_name': stock_name,
+                'profit_df': profit_df,
+                'balance_df': balance_df,
+                'cashflow_df': cashflow_df,
+                'source': 'eastmoney',
+                'fetch_time': datetime.now()
+            }
 
         except Exception as e:
             error_msg = str(e)
             if "'NoneType' object is not subscriptable" in error_msg:
-                logger.error(f"akshare 接口异常：东方财富网页结构可能已变化，导致数据解析失败。股票代码: {stock_code}")
-                logger.error(f"建议：1) 等待 akshare 更新修复 2) 使用其他数据源 3) 从本地数据库查询")
+                logger.error(f"Eastmoney interface unavailable: 东方财富网页结构已变化")
             else:
-                logger.error(f"Error fetching from akshare: {e}")
+                logger.error(f"Error fetching from Eastmoney: {e}")
             return None
-        finally:
-            self._download_queue.discard(task_id)
 
     def _save_to_database(self, data: dict[str, Any]) -> bool:
         """保存数据到数据库"""
