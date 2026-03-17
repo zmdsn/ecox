@@ -1,6 +1,15 @@
 """图表生成工具"""
 from typing import Dict, Any
+import plotly.graph_objects as go
+import plotly.io as pio
+import base64
 from .base import Tool
+
+# 全局 Kaleido 配置
+pio.defaults.default_width = 1200
+pio.defaults.default_height = 600
+pio.defaults.default_format = "png"
+pio.defaults.default_scale = 1  # 高清
 
 
 class ChartTool(Tool):
@@ -73,3 +82,34 @@ class ChartTool(Tool):
             return await self._plot_backtest_returns(**kwargs)
         elif chart_type == "dupont":
             return await self._plot_dupont_analysis(stock_code, **kwargs)
+
+    def _to_base64(self, fig: go.Figure) -> str:
+        """将 Plotly 图表转换为 base64 编码
+
+        Args:
+            fig: Plotly 图表对象
+
+        Returns:
+            base64 编码的字符串
+
+        Note:
+            在 WSL 环境中，Kaleido 可能无法正常工作。
+            如果遇到 kaleido_scopes 错误，需要在非 WSL 环境中运行。
+        """
+        try:
+            # 转换为图片
+            img_bytes = fig.to_image(format="png")
+        except Exception as e:
+            # 捕获 Kaleido 错误并提供有用的信息
+            if "kaleido_scopes" in str(e):
+                raise RuntimeError(
+                    "Kaleido 无法初始化。这通常发生在 WSL 环境中。"
+                    "解决方案：1) 在非 WSL 环境中运行 2) 安装并配置 xvfb "
+                    "3) 使用原生 Linux 或 macOS 环境"
+                ) from e
+            raise
+
+        # 编码为 base64
+        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+
+        return img_base64
