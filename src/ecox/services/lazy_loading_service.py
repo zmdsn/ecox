@@ -87,6 +87,10 @@ class LazyLoadingService:
         fresh_data = self._fetch_from_akshare(formatted_code)
 
         if fresh_data:
+            # 转换数据格式（如果是新浪数据，从DataFrame转为dict）
+            if fresh_data.get('source') == 'sina':
+                fresh_data = self._convert_sina_data(fresh_data)
+
             # Step 4: 存储到数据库（仅支持东方财富格式）
             if fresh_data.get('source') == 'eastmoney':
                 self._save_to_database(fresh_data)
@@ -260,6 +264,130 @@ class LazyLoadingService:
         except Exception as e:
             logger.error(f"Error fetching from Sina: {e}")
             return None
+
+    def _convert_sina_data(self, data: dict[str, Any]) -> dict[str, Any]:
+        """转换新浪数据格式为标准格式
+
+        Args:
+            data: 新浪接口返回的原始数据
+
+        Returns:
+            转换后的标准格式数据
+        """
+        profit_df = data.get('profit_df')
+        balance_df = data.get('balance_df')
+        cashflow_df = data.get('cashflow_df')
+
+        # 提取最新报告日期
+        report_date = None
+        report_type = 'Unknown'
+        if profit_df is not None and not profit_df.empty:
+            latest_date_str = profit_df.iloc[0]['报告日']
+            try:
+                # 新浪日期格式：20250930 -> 2025-09-30
+                if len(latest_date_str) == 8:
+                    year = latest_date_str[:4]
+                    month = latest_date_str[4:6]
+                    day = latest_date_str[6:8]
+                    report_date = f"{year}-{month}-{day}"
+                else:
+                    report_date = latest_date_str
+
+                # 推断报告类型
+                month_int = int(latest_date_str[4:6]) if len(latest_date_str) >= 6 else 0
+                if month_int == 3:
+                    report_type = 'Q1'
+                elif month_int == 6:
+                    report_type = 'Q2'
+                elif month_int == 9:
+                    report_type = 'Q3'
+                elif month_int == 12:
+                    report_type = 'Q4'
+            except:
+                pass
+
+        # 字段名映射：中文字段名 -> 英文字段名
+        profit_field_mapping = {
+            '净利润': 'net_profit',
+            '营业总收入': 'total_revenue',
+            '营业收入': 'revenue',
+            '财务费用': 'interest_expense',
+            '利息费用': 'interest_expense',
+            '研发费用': 'rd_expenses',
+            '销售费用': 'selling_expenses',
+            '管理费用': 'admin_expenses',
+            '营业成本': 'operating_cost',
+            '营业利润': 'operating_profit',
+            '利润总额': 'total_profit',
+        }
+
+        balance_field_mapping = {
+            '资产总计': 'total_assets',
+            '负债合计': 'total_liabilities',
+            '所有者权益(或股东权益)合计': 'total_equity',
+            '流动资产合计': 'current_assets',
+            '流动负债合计': 'current_liabilities',
+            '固定资产净额': 'fixed_assets',
+            '货币资金': 'cash',
+            '存货': 'inventory',
+        }
+
+        cashflow_field_mapping = {
+            '经营活动产生的现金流量净额': 'operating_cash_flow',
+            '投资活动产生的现金流量净额': 'investing_cash_flow',
+            '筹资活动产生的现金流量净额': 'financing_cash_flow',
+            '购建固定资产、无形资产和其他长期资产所支付的现金': 'capex',
+            '现金及现金等价物净增加额': 'net_cash_increase',
+            '期末现金及现金等价物余额': 'cash_balance',
+        }
+
+        # 转换利润表
+        profit_sheet = {}
+        if profit_df is not None and not profit_df.empty:
+            row = profit_df.iloc[0]
+            raw_dict = row.to_dict()
+            # 应用字段映射
+            for cn_name, en_name in profit_field_mapping.items():
+                if cn_name in raw_dict:
+                    profit_sheet[en_name] = raw_dict[cn_name]
+            # 保留原始字段
+            profit_sheet.update(raw_dict)
+
+        # 转换资产负债表
+        balance_sheet = {}
+        if balance_df is not None and not balance_df.empty:
+            row = balance_df.iloc[0]
+            raw_dict = row.to_dict()
+            # 应用字段映射
+            for cn_name, en_name in balance_field_mapping.items():
+                if cn_name in raw_dict:
+                    balance_sheet[en_name] = raw_dict[cn_name]
+            # 保留原始字段
+            balance_sheet.update(raw_dict)
+
+        # 转换现金流量表
+        cash_flow_sheet = {}
+        if cashflow_df is not None and not cashflow_df.empty:
+            row = cashflow_df.iloc[0]
+            raw_dict = row.to_dict()
+            # 应用字段映射
+            for cn_name, en_name in cashflow_field_mapping.items():
+                if cn_name in raw_dict:
+                    cash_flow_sheet[en_name] = raw_dict[cn_name]
+            # 保留原始字段
+            cash_flow_sheet.update(raw_dict)
+
+        return {
+            'stock_code': data['stock_code'],
+            'stock_name': data.get('stock_name', 'Unknown'),
+            'report_date': report_date,
+            'report_type': report_type,
+            'profit_sheet': profit_sheet,
+            'balance_sheet': balance_sheet,
+            'cash_flow_sheet': cash_flow_sheet,
+            'source': data['source'],
+            'fetch_time': data.get('fetch_time')
+        }
 
     def _fetch_from_eastmoney(self, ak_code: str, stock_code: str) -> dict[str, Any] | None:
         """从东方财富接口获取财务数据（原有方法，可能失效）"""
