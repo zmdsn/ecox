@@ -74,8 +74,8 @@ async def test_plot_price_trend():
 
     tool = ChartTool()
 
-    # Mock 数据库查询
-    mock_data = Mock()
+    # Mock 数据库查询 - 使用 spec 来限制属性，模拟 StockDailyData 模型
+    mock_data = Mock(spec=['stock_code', 'trade_date', 'close', 'open', 'high', 'low', 'volume'])
     mock_data.stock_code = "SH600809"
     mock_data.trade_date = "2026-03-17"
     mock_data.close = 160.77
@@ -83,6 +83,7 @@ async def test_plot_price_trend():
     mock_data.high = 161.0
     mock_data.low = 158.0
     mock_data.volume = 1000000
+    # Note: mock_data doesn't have stock_name attribute (like StockDailyData model)
 
     # Create mock session
     mock_session = MagicMock()
@@ -105,3 +106,10 @@ async def test_plot_price_trend():
             assert "600809" in result["title"]
             assert "data_summary" in result
             assert result["image_base64"] == 'mock_base64_string'
+
+            # 验证标题格式 - 确保股票代码不会重复出现
+            # 当没有 stock_name 时，应该是 "600809 SH600809 - 股价走势图（近30d）"
+            # 而不是 "600809 600809 - 股价走势图（近30d）"
+            assert "SH600809" in result["title"]  # 格式化后的代码应该出现
+            # 验证标题以正确的股票代码开头
+            assert result["title"].startswith("600809 SH600809")

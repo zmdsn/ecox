@@ -167,7 +167,8 @@ class ChartTool(Tool):
         # 提取数据
         dates = [d.trade_date for d in data]
         prices = [float(d.close) for d in data]
-        stock_name = data[0].stock_code if hasattr(data[0], 'stock_code') else stock_code
+        # 优先使用 stock_name，如果没有则使用格式化后的股票代码
+        stock_name = data[0].stock_name if hasattr(data[0], 'stock_name') else formatted_code
 
         # 创建图表
         fig = go.Figure()
