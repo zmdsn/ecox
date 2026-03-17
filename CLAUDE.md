@@ -241,3 +241,82 @@ VALIDATION_AUTO_CLEAN=true
    - 根目录 - 当前活跃的开发文件
 
 5. **开发环境**：Python 3.13，使用 uv 作为包管理器，清华源镜像配置在 pyproject.toml
+
+## Ecox AI Agent 模块
+
+Ecox AI Agent 是一个专业的 A 股投资分析智能体系统，使用 LLM + 工具调用实现智能分析。
+
+### 目录结构
+- `src/ecox/agent/` - Agent 模块
+  - `models/` - 数据模型（Message, Conversation, Context, Entities）
+  - `tools/` - 工具实现（Financial, Market, Data, Backtest）
+  - `agent.py` - EcoxA 智能体核心类
+  - `conversation.py` - 对话管理器
+  - `server.py` - FastAPI 服务器
+  - `utils/prompts.py` - 系统提示词
+
+### 常用命令
+
+```bash
+# 初始化 Agent 数据库表
+uv run python scripts/init_agent_tables.py
+
+# 启动 LiteLLM 代理（端口 4000）
+uv run python scripts/start_litellm_proxy.py
+
+# 启动 Agent 服务器（端口 8000）
+uv run python scripts/start_agent_server.py --port 8000 --reload
+
+# 运行 Agent 测试
+uv run pytest tests/agent/ -v
+
+# 运行集成测试
+uv run pytest tests/agent/test_integration.py -v
+```
+
+### 核心功能
+
+1. **财务分析工具** - 分析 ROE、毛利率、现金流等财务指标
+2. **行情数据工具** - 查询实时股价、涨跌幅、成交量
+3. **数据查询工具** - 执行 SQL 查询获取历史数据
+4. **策略回测工具** - 对股票进行策略回测评估
+
+### API 端点
+
+- `POST /v1/chat/completions` - OpenAI 兼容的聊天 API
+- `GET /health` - 健康检查
+- `GET /v1/models` - 模型列表
+- `GET /docs` - FastAPI 自动生成的文档
+
+### 使用示例
+
+```python
+from ecox.agent import EcoxA
+from ecox.agent.models.message import Message
+
+# 初始化智能体
+agent = EcoxA(model="gpt-4")
+
+# 对话
+messages = [
+    Message(role="user", content="分析中国平安601318", session_id="demo-1")
+]
+response = await agent.chat(messages)
+```
+
+### 测试
+
+所有测试位于 `tests/agent/`:
+- `test_models.py` - 数据模型测试（8 个测试）
+- `test_tools/` - 工具测试（20 个测试）
+- `test_conversation.py` - 对话管理测试（3 个测试）
+- `test_agent.py` - Agent 测试（3 个测试）
+- `test_server.py` - 服务器测试（3 个测试）
+- `test_integration.py` - 集成测试（2 个测试）
+
+总计：39 个测试，全部通过
+
+### 文档
+
+- `docs/agent-usage.md` - 详细使用指南
+- `docs/plans/2026-03-17-ecox-ai-agent-implementation-plan.md` - 实施计划
