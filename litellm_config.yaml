@@ -1,0 +1,35 @@
+# LiteLLM 配置文件
+# 用于统一多个 LLM 提供商的 API
+
+model_list:
+  - model_name: gpt-4
+    litellm_params:
+      model: openai/gpt-4
+      api_base: https://api.openai.com/v1
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: gpt-3.5-turbo
+    litellm_params:
+      model: openai/gpt-3.5-turbo
+      api_base: https://api.openai.com/v1
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: claude-3-opus
+    litellm_params:
+      model: anthropic/claude-3-opus-20240229
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: qwen-turbo
+    litellm_params:
+      model: openai/qwen-turbo
+      api_base: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/DASHSCOPE_API_KEY
+
+# 通用设置
+litellm_settings:
+  drop_params: true  # 删除不支持的参数
+  set_verbose: false  # 详细日志
+  success_callback: None  # 成功回调
+  timeout: 300  # 超时时间（秒）
+  max_retries: 3  # 最大重试次数
+  num_retries: 3  # 重试次数
